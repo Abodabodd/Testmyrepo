@@ -11,8 +11,8 @@ import org.jsoup.nodes.Element
 
 class FaselHD : MainAPI() {
     override var lang = "ar"
-    override var mainUrl = "https://faselhd.express"
-    private  val alternativeUrl = "https://www.faselhd.club"
+    override var mainUrl = "https://cinemana.shabakaty.com/home"
+    private  val alternativeUrl = "https://cinemana.shabakaty.com/home"
     override var name = "FaselHD"
     override val usesWebView = false
     override val hasMainPage = true
