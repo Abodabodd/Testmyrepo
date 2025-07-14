@@ -1,200 +1,96 @@
-package com.arabseed
+package com.cinemana.provider
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
-import org.jsoup.nodes.Element
-import android.util.Log
+import com.lagradost.cloudstream3.utils.*
+import kotlinx.serialization.json.*
 
-class ArabSeed : MainAPI() {
-    override var lang = "ar"
-    override var mainUrl = "https://arabseed.show"
-    override var name = "ArabSeed"
-    override val usesWebView = false
+class CinemanaProvider : MainAPI() {
+    override var mainUrl = "https://cinemana.shabakaty.com"
+    override var name = "Cinemana"
     override val hasMainPage = true
-    override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie)
-
-    private fun String.getIntFromText(): Int? {
-        return Regex("""\d+""").find(this)?.groupValues?.firstOrNull()?.toIntOrNull()
-    }
-
-
-    private fun Element.toSearchResponse(): SearchResponse? {
-        val title = select("h4").text()
-        val posterUrl = select("img.imgOptimzer").attr("data-image").ifEmpty { select("div.Poster img").attr("data-src") }
-        val tvType = if (select("span.category").text().contains("مسلسلات")) TvType.TvSeries else TvType.Movie
-        return MovieSearchResponse(
-                title,
-                select("a").attr("href"),
-                this@ArabSeed.name,
-                tvType,
-                posterUrl,
-        )
-    }
+    override var lang = "ar"
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-            "$mainUrl/movies/?offset=" to "Movies",
-            "$mainUrl/series/?offset=" to "Series",
+        "$mainUrl/movies" to "أفلام",
+        "$mainUrl/series" to "مسلسلات"
     )
 
-    override suspend fun getMainPage(
-            page: Int,
-            request: MainPageRequest
-    ): HomePageResponse {
-        val document = app.get(request.data + page, timeout = 120).document
-        val home = document.select("ul.Blocks-UL > div").mapNotNull {
-            it.toSearchResponse()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val document = app.get(request.data).document
+        val items = document.select(".card").mapNotNull {
+            val title = it.selectFirst(".card-title")?.text() ?: return@mapNotNull null
+            val href = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+            val poster = it.selectFirst("img")?.attr("src")
+            newAnimeSearchResponse(title, href) {
+                this.posterUrl = poster
+            }
         }
-        return newHomePageResponse(request.name, home)
+        return newHomePageResponse(request.name, items)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val list = arrayListOf<SearchResponse>()
-        arrayListOf(
-                mainUrl to "series",
-                mainUrl to "movies"
-        ).apmap { (url, type) ->
-            val doc = app.post(
-                    "$url/wp-content/themes/Elshaikh2021/Ajaxat/SearchingTwo.php",
-                    data = mapOf("search" to query, "type" to type),
-                    referer = mainUrl
-            ).document
-            doc.select("ul.Blocks-UL > div").mapNotNull {
-                it.toSearchResponse()?.let { it1 -> list.add(it1) }
+        val url = "$mainUrl/search?q=$query"
+        val document = app.get(url).document
+        return document.select(".card").mapNotNull {
+            val title = it.selectFirst(".card-title")?.text() ?: return@mapNotNull null
+            val href = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+            val poster = it.selectFirst("img")?.attr("src")
+            newAnimeSearchResponse(title, href) {
+                this.posterUrl = poster
             }
         }
-        return list
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, timeout = 5000).document
-        val title = doc.title()
-        val isMovie = title.contains("فيلم")
+        val doc = app.get(url).document
+        val title = doc.selectFirst(".video-title")?.text() ?: "Unknown"
+        val poster = doc.selectFirst("img.cover")?.attr("src")
+        val description = doc.selectFirst(".description")?.text()
+        val apiId = url.substringAfterLast("/") // crude example
+        val apiUrl = "$mainUrl/api/android/allVideoInfo/id/$apiId"
 
-        val posterUrl = doc.select("div.Poster > img").let{ it.attr("data-src").ifEmpty { it.attr("src") } }
-        val rating = doc.select("div.RatingImdb em").text().getIntFromText()
-        val synopsis = doc.select("p.descrip").last()?.text()
-        val year = doc.select("li:contains(السنه) a").text().getIntFromText()
-        val tags = doc.select("li:contains(النوع) > a, li:contains(التصنيف) > a")?.map { it.text() }
-
-        val actors = doc.select("div.WorkTeamIteM").mapNotNull {
-            val name = it.selectFirst("h4 > em")?.text() ?: return@mapNotNull null
-            val image = it.selectFirst("div.Icon img")?.attr("src") ?: return@mapNotNull null
-            val roleString = it.select("h4 > span").text()
-            val mainActor = Actor(name, image)
-            ActorData(actor = mainActor, roleString = roleString)
-        }
-
-        val recommendations = doc.select("ul.Blocks-UL > div").mapNotNull { element ->
-            element.toSearchResponse()
-        }
-
-        return if (isMovie) {
-            newMovieLoadResponse(
-                    title,
-                    url,
-                    TvType.Movie,
-                    url
-            ) {
-                this.posterUrl = posterUrl
-                this.recommendations = recommendations
-                this.plot = synopsis
-                this.tags = tags
-                this.actors = actors
-                this.rating = rating
-                this.year = year
-            }
-        } else {
-            val seasonList = doc.select("div.SeasonsListHolder ul > li")
-            val episodes = arrayListOf<Episode>()
-            if(seasonList.isNotEmpty()) {
-                seasonList.apmap { season ->
-                    app.post(
-                            "$mainUrl/wp-content/themes/Elshaikh2021/Ajaxat/Single/Episodes.php",
-                            data = mapOf("season" to season.attr("data-season"), "post_id" to season.attr("data-id"))
-                    ).document.select("a").apmap {
-                        episodes.add(Episode(
-                                it.attr("href"),
-                                it.text(),
-                                season.attr("data-season")[0].toString().toIntOrNull(),
-                                it.text().getIntFromText()
-                        ))
-                    }
-                }
-            } else {
-                doc.select("div.ContainerEpisodesList > a").apmap {
-                    episodes.add(Episode(
-                            it.attr("href"),
-                            it.text(),
-                            0,
-                            it.text().getIntFromText()
-                    ))
-                }
-            }
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinct().sortedBy { it.data }) {
-                this.posterUrl = posterUrl
-                this.tags = tags
-                this.plot = synopsis
-                this.actors = actors
-                this.recommendations = recommendations
-                this.rating = rating
-                this.year = year
-            }
+        return newMovieLoadResponse(title, apiUrl, TvType.Movie, apiUrl) {
+            this.posterUrl = poster
+            this.plot = description
         }
     }
 
-    override suspend fun loadLinks(
-            data: String,
-            isCasting: Boolean,
-            subtitleCallback: (SubtitleFile) -> Unit,
-            callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val doc = app.get(data).document
-        val watchUrl = doc.select("a.watchBTn").attr("href")
-        val watchDoc = app.get(watchUrl, headers = mapOf("Referer" to mainUrl)).document
-        val indexOperators = arrayListOf<Int>()
-        val list: List<Element> = watchDoc.select("ul > li[data-link], ul > h3").mapIndexed { index, element ->
-            if(element.`is`("h3")) {
-                indexOperators.add(index)
-                element
-            } else
-                Log.d("Elements","${element}")
-                element
-        }
-        Log.d("list","${list}")
-        var watchLinks: List<Pair<Int, List<Element>>>;
-        if(indexOperators.isNotEmpty()) {
-            watchLinks = indexOperators.mapIndexed { index, it ->
-                var endIndex = list.size
-                if (index != indexOperators.size - 1) endIndex = (indexOperators[index + 1]) - 1
-                list[it].text().getIntFromText() as Int to list.subList(it + 1, endIndex) as List<Element>
-            }
-        } else {
-            watchLinks = arrayListOf(0 to list)
-        }
-        Log.d("watchLinks","${watchLinks}")
-        watchLinks.apmap { (Quality ,links) ->
-            links.apmap {
-                val iframeUrl = it.attr("data-link")
-                Log.d("iframeUrl","${iframeUrl}")
-                println(iframeUrl)
-                if(it.text().contains("سيد")) {
-                    val sourceElement = app.get(iframeUrl, headers = mapOf("Referer" to mainUrl)).document.select("source")
-                    Log.d("sourceframe","${sourceElement.attr("src")}")
+    private fun getQualityFromName(name: String): Int {
+        return Regex("(\\d{3,4})").find(name)?.groupValues?.get(1)?.toIntOrNull() ?: Qualities.Unknown.value
+    }
 
-                    callback.invoke(
-                            ExtractorLink(
-                                    this.name,
-                                    "Arab Seed",
-                                    sourceElement.attr("src"),
-                                    data,
-                                    quality = 0
-                            )
-                    )
-                    loadExtractor(iframeUrl, data, subtitleCallback, callback)
-                } else loadExtractor(iframeUrl, data, subtitleCallback, callback)
-            }
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val response = app.get(data, referer = data).text
+        val root = tryParseJson(response)?.jsonObject ?: return
+
+        val videos = root["videos"]?.jsonArray ?: return
+        videos.forEach { elem ->
+            val obj = elem.jsonObject
+            val videoUrl = obj["videoUrl"]?.jsonPrimitive?.content ?: return@forEach
+            val qualityName = obj["quality"]?.jsonPrimitive?.content ?: "Default"
+            callback(
+                ExtractorLink(
+                    name,
+                    "Cinemana",
+                    videoUrl,
+                    referer = data,
+                    quality = getQualityFromName(qualityName),
+                    isM3u8 = videoUrl.endsWith(".m3u8")
+                )
+            )
         }
-        return true
+
+        root["subtitles"]?.jsonArray?.forEach { subElem ->
+            val subObj = subElem.jsonObject
+            val lang = subObj["language"]?.jsonPrimitive?.content ?: "Subtitle"
+            val subUrl = subObj["url"]?.jsonPrimitive?.content ?: return@forEach
+            subtitleCallback(SubtitleFile(lang, subUrl))
+        }
     }
 }
