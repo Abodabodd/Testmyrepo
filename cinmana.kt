@@ -1,40 +1,8 @@
-package com.example
-
-import com.lagradost.cloudstream3.*
-import org.jsoup.nodes.Element
-
-class ShabakatyCinemanaProvider : MainAPI() {
-    override var name = "Shabakaty Cinemana"
-    override var mainUrl = "https://cinemana.shabakaty.com"
-    override var lang = "ar"
-    override val hasMainPage = true
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val doc = app.get(mainUrl).document
-        val movies = doc.select("div.movie-item").mapNotNull {
-            toSearchResponse(it)
-        }
-        return newHomePageResponse(HomePageList("أحدث الأفلام", movies), hasNext = false)
-    }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$mainUrl/search?query=$query"
-        val doc = app.get(url).document
-        return doc.select("div.movie-item").mapNotNull {
-            toSearchResponse(it)
-        }
-    }
-
-    private fun toSearchResponse(it: Element): SearchResponse? {
-        val title = it.selectFirst("h3.title")?.text() ?: return null
-        val href = it.selectFirst("a")?.attr("href") ?: return null
-        val posterUrl = it.selectFirst("img")?.attr("src")
-        val year = it.selectFirst("span.year")?.text()?.toIntOrNull()
-
-        return if (href.contains("/movie/")) {
-            newMovieSearchResponse(title, href, type = TvType.Movie) {
-                this.posterUrl = posterUrl
+O Assignment type mismatch: actual type is 'Int?', but 'Score?' was expected. :61
+O No parameter with name 'dataUrl' found.:72
+O Assignment type mismatch: actual type is 'Int?', but 'Score?' was expected. :76
+A Class "ShabakatyCinemanaProvider" is never used :6
+A Package directive does not match the file location :1                this.posterUrl = posterUrl
                 this.year = year
             }
         } else {
