@@ -54,7 +54,7 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val score = doc.selectFirst("span.rating")?.text()?.toRatingInt()
 
         return if (url.contains("/movie/")) {
-            newMovieLoadResponse(title, url, type = TvType.Movie) {
+            newMovieLoadResponse(title, url, dataUrl = url, type = TvType.Movie) {
                 this.posterUrl = posterUrl
                 this.year = year
                 this.plot = plot
@@ -69,57 +69,11 @@ class ShabakatyCinemanaProvider : MainAPI() {
                 }
             }
 
-            newTvSeriesLoadResponse(title, url, type = TvType.TvSeries, episodes = episodes) {
+            newTvSeriesLoadResponse(title, url, dataUrl = url, type = TvType.TvSeries, episodes = episodes) {
                 this.posterUrl = posterUrl
                 this.year = year
                 this.plot = plot
                 this.score = score
-            }
-        }
-    }
-}        return if (href.contains("/movie/")) {
-            newMovieSearchResponse(title, href) {
-                this.posterUrl = posterUrl
-                this.year = year
-            }
-        } else {
-            newTvSeriesSearchResponse(title, href) {
-                this.posterUrl = posterUrl
-                this.year = year
-            }
-        }
-    }
-
-    override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url).document
-        val title = doc.selectFirst("h1")?.text() ?: "No Title"
-        val posterUrl = doc.selectFirst("div.poster img")?.attr("src")
-        val year = doc.selectFirst("span.year")?.text()?.toIntOrNull()
-        val plot = doc.selectFirst("div.plot")?.text()
-        val rating = doc.selectFirst("span.rating")?.text()?.toRatingInt()
-
-        return if (url.contains("/movie/")) {
-            newMovieLoadResponse(title, url) {
-                this.posterUrl = posterUrl
-                this.year = year
-                this.plot = plot
-                this.rating = rating
-            }
-        } else {
-            val episodes = doc.select("ul.episodes li").map {
-                val epTitle = it.text()
-                val epUrl = it.selectFirst("a")?.attr("href") ?: return@map null
-                newEpisode(epUrl) {
-                    this.name = epTitle
-                }
-            }.filterNotNull()
-
-            newTvSeriesLoadResponse(title, url) {
-                this.posterUrl = posterUrl
-                this.year = year
-                this.plot = plot
-                this.rating = rating
-                addEpisodes(DubStatus.Subbed, episodes)
             }
         }
     }
