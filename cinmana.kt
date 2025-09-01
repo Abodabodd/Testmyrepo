@@ -1,4 +1,4 @@
-package com.hexated
+package com.example
 
 import com.lagradost.cloudstream3.*
 import org.jsoup.nodes.Element
@@ -36,6 +36,48 @@ class ShabakatyCinemanaProvider : MainAPI() {
             newMovieSearchResponse(title, href, type = TvType.Movie) {
                 this.posterUrl = posterUrl
                 this.year = year
+            }
+        } else {
+            newTvSeriesSearchResponse(title, href, type = TvType.TvSeries) {
+                this.posterUrl = posterUrl
+                this.year = year
+            }
+        }
+    }
+
+    override suspend fun load(url: String): LoadResponse {
+        val doc = app.get(url).document
+        val title = doc.selectFirst("h1")?.text() ?: "No Title"
+        val posterUrl = doc.selectFirst("div.poster img")?.attr("src")
+        val year = doc.selectFirst("span.year")?.text()?.toIntOrNull()
+        val plot = doc.selectFirst("div.plot")?.text()
+        val score = doc.selectFirst("span.rating")?.text()?.toScore()
+
+        return if (url.contains("/movie/")) {
+            newMovieLoadResponse(title, url, dataUrl = url, type = TvType.Movie) {
+                this.posterUrl = posterUrl
+                this.year = year
+                this.plot = plot
+                this.score = score
+            }
+        } else {
+            val episodes = doc.select("ul.episodes li").mapNotNull {
+                val epTitle = it.text()
+                val epUrl = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+                newEpisode(epUrl) {
+                    this.name = epTitle
+                }
+            }
+
+            newTvSeriesLoadResponse(title, url, dataUrl = url, type = TvType.TvSeries, episodes = episodes) {
+                this.posterUrl = posterUrl
+                this.year = year
+                this.plot = plot
+                this.score = score
+            }
+        }
+    }
+}                this.year = year
             }
         } else {
             newTvSeriesSearchResponse(title, href, type = TvType.TvSeries) {
