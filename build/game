@@ -1,0 +1,6 @@
+{
+  "name": "Arabic repository (UNSTABLE)",
+  "description": "I can't maintain the plugins right now.",
+  "manifestVersion": 1,
+  "pluginLists": ["https://raw.githubusercontent.com/Abodabodd/Testmyrepo/refs/heads/main/build/testrep"]
+}
