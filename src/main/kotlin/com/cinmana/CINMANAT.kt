@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION") // هذا التعليق يخبر المحرر بتجاهل كل التحذيرات في الملف
+@file:Suppress("DEPRECATION") // تجاهل التحذيرات القديمة
 
 package com.example
 
@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.SerialName
 
+@Suppress("unused")
 class ShabakatyCinemanaProvider : MainAPI() {
     override var name = "Shabakaty Cinemana"
     override var mainUrl = "https://cinemana.shabakaty.com"
@@ -55,7 +56,7 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val scoreInt = details.stars?.let { (it.toFloat() / 2 * 10).toInt() }
         val recommendations = mutableListOf<SearchResponse>()
 
-        if (details.videoType == 2) {
+        return if (details.videoType == 2) {
             val episodesUrl = "$mainUrl/api/android/videoSeason/id/$videoId"
             val episodes = app.get(episodesUrl).parsedSafe<List<CinemanaEpisode>>()?.map {
                 newEpisode(it) {
@@ -66,7 +67,7 @@ class ShabakatyCinemanaProvider : MainAPI() {
                 }
             }?.sortedWith(compareBy({ it.season }, { it.episode })) ?: emptyList()
 
-            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = posterUrl
                 this.year = year
                 this.plot = plot
@@ -75,7 +76,7 @@ class ShabakatyCinemanaProvider : MainAPI() {
                 this.contentRating = null
             }
         } else {
-            return newMovieLoadResponse(title, url, TvType.Movie, url) {
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = posterUrl
                 this.year = year
                 this.plot = plot
@@ -127,7 +128,6 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val stars: String? = null,
         val videoType: Int? = null
     ) {
-        // دالة toSearchResponse معدلة لتعمل بشكل صحيح
         fun toSearchResponse(): SearchResponse {
             val validUrl = nb ?: return this@ShabakatyCinemanaProvider.newMovieSearchResponse(
                 "Error",
