@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION") // تجاهل التحذيرات القديمة
+@file:Suppress("DEPRECATION")
 
 package com.example
 
@@ -6,19 +6,14 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.SerialName
 
-@Suppress("unused")
+@Suppress("unused") // قد يظهر تحذير أن الكلاس غير مستعمل أثناء التطوير
 class ShabakatyCinemanaProvider : MainAPI() {
     override var name = "Shabakaty Cinemana"
     override var mainUrl = "https://cinemana.shabakaty.com"
     override var lang = "ar"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
@@ -53,7 +48,9 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val posterUrl = details.imgObjUrl
         val year = details.year?.toIntOrNull()
         val plot = details.enContent
-        val scoreInt = details.stars?.let { (it.toFloat() / 2 * 10).toInt() }
+        val scoreInt = details.stars?.let {
+            runCatching { (it.toFloat() / 2f * 10f).toInt() }.getOrNull()
+        }
         val recommendations = mutableListOf<SearchResponse>()
 
         return if (details.videoType == 2) {
@@ -102,21 +99,19 @@ class ShabakatyCinemanaProvider : MainAPI() {
                 source = this.name,
                 name = video.resolution ?: this.name,
                 url = video.videoUrl,
-            ).let { callback(it) }
+            ).let(callback)
         }
 
         app.get(subtitlesUrl).parsedSafe<CinemanaSubtitleHolder>()?.translations?.forEach { sub ->
-            val lang = sub.name ?: "Unknown"
-            subtitleCallback(
-                SubtitleFile(
-                    lang,
-                    sub.file
-                )
-            )
+            subtitleCallback(SubtitleFile(sub.name ?: "Unknown", sub.file))
         }
 
         return true
     }
+
+    // ========================
+    // Models (DTOs)
+    // ========================
 
     @Serializable
     data class CinemanaItem(
@@ -127,36 +122,7 @@ class ShabakatyCinemanaProvider : MainAPI() {
         @SerialName("en_content") val enContent: String? = null,
         val stars: String? = null,
         val videoType: Int? = null
-    ) {
-        fun toSearchResponse(): SearchResponse {
-            val validUrl = nb ?: return this@ShabakatyCinemanaProvider.newMovieSearchResponse(
-                "Error",
-                "error",
-                this@ShabakatyCinemanaProvider.name,
-                TvType.Movie
-            )
-
-            return if (this.videoType == 2) {
-                this@ShabakatyCinemanaProvider.newTvSeriesSearchResponse(
-                    enTitle ?: "No Title",
-                    validUrl,
-                    TvType.TvSeries
-                ) {
-                    this.posterUrl = imgObjUrl
-                    this.year = this@CinemanaItem.year?.toIntOrNull()
-                }
-            } else {
-                this@ShabakatyCinemanaProvider.newMovieSearchResponse(
-                    enTitle ?: "No Title",
-                    validUrl,
-                    TvType.Movie
-                ) {
-                    this.posterUrl = imgObjUrl
-                    this.year = this@CinemanaItem.year?.toIntOrNull()
-                }
-            }
-        }
-    }
+    )
 
     @Serializable
     data class CinemanaEpisode(
@@ -181,4 +147,44 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val file: String,
         val name: String?
     )
+
+    // ========================
+    // Mappers / Extensions
+    // ========================
+
+    /**
+     * تحويل عنصر API إلى SearchResponse.
+     * ملاحظة: هذا امتداد لـ CinemanaItem لكنه مُعرّف داخل ShabakatyCinemanaProvider
+     * وبالتالي لدينا Receiver من نوع MainAPI تلقائياً، فنستطيع استدعاء
+     * newMovieSearchResponse / newTvSeriesSearchResponse مباشرة بدون أي Labels.
+     */
+    private fun CinemanaItem.toSearchResponse(): SearchResponse {
+        val validUrl = nb ?: return newMovieSearchResponse(
+            "Error",
+            "error",
+            TvType.Movie
+        )
+
+        val itemYear = year?.toIntOrNull()
+
+        return if (videoType == 2) {
+            newTvSeriesSearchResponse(
+                enTitle ?: "No Title",
+                validUrl,
+                TvType.TvSeries
+            ) {
+                this.posterUrl = imgObjUrl
+                this.year = itemYear
+            }
+        } else {
+            newMovieSearchResponse(
+                enTitle ?: "No Title",
+                validUrl,
+                TvType.Movie
+            ) {
+                this.posterUrl = imgObjUrl
+                this.year = itemYear
+            }
+        }
+    }
 }
