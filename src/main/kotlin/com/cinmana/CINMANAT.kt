@@ -97,7 +97,6 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$videoId"
 
         app.get(videosUrl).parsedSafe<List<CinemanaVideo>>()?.forEach { video ->
-            // تم التغيير: استخدام الدالة المساعدة newExtractorLink
             newExtractorLink(
                 source = this.name,
                 name = video.resolution ?: this.name,
@@ -128,15 +127,30 @@ class ShabakatyCinemanaProvider : MainAPI() {
         val stars: String? = null,
         val videoType: Int? = null
     ) {
+        // دالة toSearchResponse معدلة لتعمل بشكل صحيح
         fun toSearchResponse(): SearchResponse {
-            val validUrl = nb ?: return newMovieSearchResponse("Error", "error", this@ShabakatyCinemanaProvider.name, TvType.Movie)
+            val validUrl = nb ?: return this@ShabakatyCinemanaProvider.newMovieSearchResponse(
+                "Error",
+                "error",
+                this@ShabakatyCinemanaProvider.name,
+                TvType.Movie
+            )
+
             return if (this.videoType == 2) {
-                newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
+                this@ShabakatyCinemanaProvider.newTvSeriesSearchResponse(
+                    enTitle ?: "No Title",
+                    validUrl,
+                    TvType.TvSeries
+                ) {
                     this.posterUrl = imgObjUrl
                     this.year = this@CinemanaItem.year?.toIntOrNull()
                 }
             } else {
-                newMovieSearchResponse(enTitle ?: "No Title", validUrl, TvType.Movie) {
+                this@ShabakatyCinemanaProvider.newMovieSearchResponse(
+                    enTitle ?: "No Title",
+                    validUrl,
+                    TvType.Movie
+                ) {
                     this.posterUrl = imgObjUrl
                     this.year = this@CinemanaItem.year?.toIntOrNull()
                 }
