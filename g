@@ -1,40 +1,34 @@
-package com.Cinmana
+package com.cinemana
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.SerialName
+import com.lagradost.cloudstream3.utils.*
 
 class ShabakatyCinemanaProvider : MainAPI() {
-    override var name = "Shabakaty Cinemana"
     override var mainUrl = "https://cinemana.shabakaty.com"
-    override var lang = "ar"
+    override var name = "Shabakaty Cinemana"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
+    override val lang = "ar"
 
-    private val json = Json {
-        ignoreUnknownKeys = true
+    // نرجع صفحة رئيسية فارغة مؤقتًا
+    override suspend fun getMainPage(
+        page: Int,
+        request: MainPageRequest
+    ): HomePageResponse {
+        return newHomePageResponse(emptyList())
     }
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val items = mutableListOf<HomePageList>()
-
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
-        val moviesResponse = app.get(moviesUrl).parsedSafe<List<CinemanaItem>>() ?: emptyList()
-        items.add(HomePageList(
-            "أحدث الأفلام",
-            moviesResponse.map { it.toSearchResponse() } as List<SearchResponse>
-        ))
-
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
-        val seriesResponse = app.get(seriesUrl).parsedSafe<List<CinemanaItem>>() ?: emptyList()
-        items.add(HomePageList(
-            "أحدث المسلسلات",
-            seriesResponse.map { it.toSearchResponse() } as List<SearchResponse>
-        ))
-
-        return newHomePageResponse(items)
+    // البحث مؤقتًا يرجع نتيجة وهمية عشان يبان أنه شغال
+    override suspend fun search(query: String): List<SearchResponse> {
+        return listOf(
+            newMovieSearchResponse(
+                "فيلم تجريبي",
+                "https://cinemana.shabakaty.com"
+            ) {
+                this.posterUrl = null
+            }
+        )
+    }
+}        return newHomePageResponse(items)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
