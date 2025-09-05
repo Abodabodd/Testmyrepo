@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.plugins.BasePlugin
 @CloudstreamPlugin
 class CinemanaPlugin : BasePlugin() {
     override fun load() {
+        // سجل البروڤايدر هنا
         registerMainAPI(ShabakatyCinemanaProvider())
     }
 }
