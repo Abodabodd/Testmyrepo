@@ -1,40 +1,14 @@
 package com.cinemana
 
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerialName
+import com.lagradost.cloudstream3.plugins.BasePlugin
+import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 
-class ShabakatyCinemanaProvider : MainAPI() {
-    override var name = "Shabakaty Cinemana"
-    override var mainUrl = "https://cinemana.shabakaty.com"
-    override var lang = "ar"
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val items = mutableListOf<HomePageList>()
-
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
-        val moviesResponse = app.get(moviesUrl).parsedSafe<List<CinemanaItem>>() ?: emptyList()
-        items.add(HomePageList("أحدث الأفلام", moviesResponse.map { it.toSearchResponse() }))
-
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
-        val seriesResponse = app.get(seriesUrl).parsedSafe<List<CinemanaItem>>() ?: emptyList()
-        items.add(HomePageList("أحدث المسلسلات", seriesResponse.map { it.toSearchResponse() }))
-
-        return newHomePageResponse(items)
+@CloudstreamPlugin
+class CinemanaProvider : BasePlugin() {
+    override fun load() {
+        registerMainAPI(ShabakatyCinemanaProvider())
     }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        val moviesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Movies&videoTitle=$query"
-        val movies = app.get(moviesUrl).parsedSafe<List<CinemanaItem>>()?.map { it.toSearchResponse() } ?: emptyList()
-
-        val seriesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Series&videoTitle=$query"
-        val series = app.get(seriesUrl).parsedSafe<List<CinemanaItem>>()?.map { it.toSearchResponse() } ?: emptyList()
-
-        return movies + series
-    }
+}    }
 
     override suspend fun load(url: String): LoadResponse? {
         val videoId = url
