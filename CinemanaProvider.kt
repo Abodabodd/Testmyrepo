@@ -1,15 +1,132 @@
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to com.cinemana.CinemanaItem
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at com.cinemana.CinemanaProvider.getMainPage(CinemanaProvider.kt:195)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at com.cinemana.CinemanaProvider$getMainPage$1.invokeSuspend(Unknown Source:16)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:113)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  	Suppressed: java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to com.cinemana.CinemanaItem
-2025-09-05 17:19:43.635  5633-5710  System.err              com...adost.cloudstream3.prerelease  W  		... 10 more
-2025-09-05 17:19:57.418 32410-441   ActivityManagerWrapper  com.mi.android.globallauncher        E  getRecentTasks: mainTaskId=13443   userId=0   baseIntent=Intent { act=android.intent.action.MAIN flag=270532608 cmp=ComponentInfo{com.lagradost.cloudstream3.prerelease/com.lagradost.cloudstream3.ui.account.AccountSelectActivity} }
+package com.cinemana
 
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
+
+class CinemanaProvider : MainAPI() {
+    override var name = "Shabakaty Cinemana"
+    override var mainUrl = "https://cinemana.shabakaty.com"
+    override var lang = "ar"
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val items = mutableListOf<HomePageList>()
+
+        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
+        val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
+        items.add(HomePageList("أحدث الأفلام", movies))
+
+        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
+        val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
+        items.add(HomePageList("أحدث المسلسلات", series))
+
+        return newHomePageResponse(items)
+    }
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        val moviesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Movies&videoTitle=$query"
+        val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
+
+        val seriesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Series&videoTitle=$query"
+        val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
+
+        return movies + series
+    }
+
+    override suspend fun load(url: String): LoadResponse? {
+        val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$url"
+        val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
+        val details = detailsMap.toCinemanaItem()
+
+        val title = details.enTitle ?: return null
+        val posterUrl = details.imgObjUrl
+        val plot = details.enContent
+        val year = details.year?.toIntOrNull()
+        val score = details.stars?.toFloatOrNull()?.let { (it / 2f * 10f).toInt() }
+
+        return if (details.kind == 2) {
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, emptyList()) {
+                this.posterUrl = posterUrl
+                this.plot = plot
+                this.year = year
+                this.rating = score
+            }
+        } else {
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = posterUrl
+                this.plot = plot
+                this.year = year
+                this.rating = score
+            }
+        }
+    }
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$data"
+        val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$data"
+
+        app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
+            val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
+            val resolution = videoMap["resolution"] as? String ?: "HD"
+            newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
+        }
+
+        app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
+            (list as? List<Map<String, Any>>)?.forEach { sub ->
+                val file = sub["file"] as? String ?: return@forEach
+                val lang = sub["name"] as? String ?: "Unknown"
+                subtitleCallback(SubtitleFile(lang, file))
+            }
+        }
+
+        return true
+    }
+
+    @Serializable
+    data class CinemanaItem(
+        val nb: String? = null,
+        @SerialName("en_title") val enTitle: String? = null,
+        val imgObjUrl: String? = null,
+        val year: String? = null,
+        @SerialName("en_content") val enContent: String? = null,
+        val stars: String? = null,
+        val kind: Int? = null
+    )
+
+    private fun Map<String, Any>.toCinemanaItem(): CinemanaItem {
+        return CinemanaItem(
+            nb = this["nb"] as? String,
+            enTitle = this["en_title"] as? String,
+            imgObjUrl = this["imgObjUrl"] as? String,
+            year = this["year"] as? String,
+            enContent = this["en_content"] as? String,
+            stars = this["stars"] as? String,
+            kind = (this["kind"] as? String)?.toIntOrNull() ?: (this["kind"] as? Int)
+        )
+    }
+
+    private fun CinemanaItem.toSearchResponse(): SearchResponse {
+        val validUrl = nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)
+        return if (kind == 2) {
+            newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
+                this.posterUrl = imgObjUrl
+            }
+        } else {
+            newMovieSearchResponse(enTitle ?: "No Title", validUrl, TvType.Movie) {
+                this.posterUrl = imgObjUrl
+            }
+        }
+    }
+}
