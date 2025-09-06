@@ -12,22 +12,32 @@ class CinemanaProvider : MainAPI() {
     override var lang = "ar"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
+    // 🏠 الصفحة الرئيسية
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
 
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
+        // أحدث الأفلام
+        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/$page/"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث الأفلام", movies))
 
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
+        // أحدث المسلسلات
+        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/$page/"
         val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث المسلسلات", series))
 
+        // الأكثر مشاهدة
+        val popularUrl = "$mainUrl/api/android/mostViewed/level/0/itemsPerPage/24/page/$page/"
+        val popularResponse = app.get(popularUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        val popular = popularResponse.map { it.toCinemanaItem().toSearchResponse() }
+        items.add(HomePageList("الأكثر مشاهدة", popular))
+
         return newHomePageResponse(items)
     }
 
+    // 🔍 البحث
     override suspend fun search(query: String): List<SearchResponse> {
         val moviesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Movies&videoTitle=$query"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
@@ -40,12 +50,14 @@ class CinemanaProvider : MainAPI() {
         return movies + series
     }
 
+    // 📄 تحميل تفاصيل الفيديو
     override suspend fun load(url: String): LoadResponse? {
-        val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$url"
+        val id = url.removePrefix("cinemana:")
+        val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
 
-        val title = details.enTitle ?: return null
+        val title = details.enTitle ?: "بدون عنوان"
         val posterUrl = details.imgObjUrl
         val plot = details.enContent
         val year = details.year?.toIntOrNull()
@@ -68,14 +80,17 @@ class CinemanaProvider : MainAPI() {
         }
     }
 
+    // 🎥 روابط الفيديو + الترجمات
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$data"
-        val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$data"
+        val id = data.removePrefix("cinemana:")
+
+        val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$id"
+        val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$id"
 
         app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
             val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
@@ -94,6 +109,7 @@ class CinemanaProvider : MainAPI() {
         return true
     }
 
+    // 🗂️ نموذج البيانات
     @Serializable
     data class CinemanaItem(
         val nb: String? = null,
@@ -105,6 +121,7 @@ class CinemanaProvider : MainAPI() {
         val kind: Int? = null
     )
 
+    // 🏗️ تحويل JSON إلى كائن
     private fun Map<String, Any>.toCinemanaItem(): CinemanaItem {
         return CinemanaItem(
             nb = this["nb"] as? String,
@@ -117,8 +134,9 @@ class CinemanaProvider : MainAPI() {
         )
     }
 
+    // 🔗 تجهيز النتيجة للعرض في Cloudstream
     private fun CinemanaItem.toSearchResponse(): SearchResponse {
-        val validUrl = nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)
+        val validUrl = nb?.let { "cinemana:$it" } ?: return newMovieSearchResponse("Error", "error", TvType.Movie)
         return if (kind == 2) {
             newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
                 this.posterUrl = imgObjUrl
