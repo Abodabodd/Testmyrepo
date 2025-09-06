@@ -1,23 +1,22 @@
-// use an integer for version numbers
-version = 1
+plugins {
+    id("com.android.library")
+    kotlin("android")
+}
 
-cloudstream {
-    // All of these properties are optional, you can safely remove any of them.
+android {
+    namespace = "com.cinemana"
+    compileSdk = 34
 
-    description = "Watch content from Dailymotion"
-    authors = listOf("Luna712,phisher98")
+    defaultConfig {
+        minSdk = 21
+    }
+}
 
-    /**
-     * Status int as one of the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta-only
-     **/
-    status = 1 // Will be 3 if unspecified
+dependencies {
+    // لازم يربط بالمكتبة الرئيسية
+    implementation(project(":app"))
 
-    tvTypes = listOf("Others")
-    iconUrl = "https://www.google.com/s2/favicons?domain=www.dailymotion.com&sz=%size%"
-
-    isCrossPlatform = true
+    // مكتبات أساسية
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jsoup:jsoup:1.15.4")
 }
