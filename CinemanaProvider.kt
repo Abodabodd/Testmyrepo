@@ -5,8 +5,6 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 class CinemanaProvider : MainAPI() {
     override var name = "Shabakaty Cinemana"
@@ -14,78 +12,58 @@ class CinemanaProvider : MainAPI() {
     override var lang = "ar"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
-    // -----------------------
-    // Main page (latest / series / popular)
-    // -----------------------
+    // واجهة الرئيسية
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
 
-        // أحدث الأفلام
         val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/$page/"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val movies = moviesResponse.mapNotNull { it.toCinemanaItem().toSearchResponse() }
+        val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث الأفلام", movies))
 
-        // أحدث المسلسلات
         val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/$page/"
         val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val series = seriesResponse.mapNotNull { it.toCinemanaItem().toSearchResponse() }
+        val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث المسلسلات", series))
-
-        // الأكثر مشاهدة (popular)
-        val popularUrl = "$mainUrl/api/android/mostViewed/level/0/itemsPerPage/24/page/$page/"
-        val popularResponse = app.get(popularUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val popular = popularResponse.mapNotNull { it.toCinemanaItem().toSearchResponse() }
-        items.add(HomePageList("الأكثر مشاهدة", popular))
 
         return newHomePageResponse(items)
     }
 
-    // -----------------------
-    // Search
-    // -----------------------
+    // البحث
     override suspend fun search(query: String): List<SearchResponse> {
-        val moviesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Movies&videoTitle=${query.encodeURL()}"
+        val moviesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Movies&videoTitle=$query"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val movies = moviesResponse.mapNotNull { it.toCinemanaItem().toSearchResponse() }
+        val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
 
-        val seriesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Series&videoTitle=${query.encodeURL()}"
+        val seriesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Series&videoTitle=$query"
         val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val series = seriesResponse.mapNotNull { it.toCinemanaItem().toSearchResponse() }
+        val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
 
         return movies + series
     }
 
-    // -----------------------
-    // Load (تفاصيل الفيديو/المسلسل)
-    // -----------------------
+    // تحميل تفاصيل الفيلم / المسلسل
     override suspend fun load(url: String): LoadResponse? {
-        val id = extractId(url)
-        if (id.isBlank()) return null
-
-        // اطلب التفاصيل (مع showInfo إذا أردت)
-        val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id?showInfo=true"
+        val id = url.removePrefix("cinemana:") // إزالة أي prefix
+        val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
 
-        val title = details.enTitle ?: details.arTitle ?: "بدون عنوان"
-        val posterUrl = details.imgObjUrl ?: details.img ?: null
-        val plot = details.enContent ?: details.arContent
+        val title = details.enTitle ?: return null
+        val posterUrl = details.imgObjUrl ?: details.img
+        val plot = details.enContent
         val year = details.year?.toIntOrNull()
         val score = details.stars?.toFloatOrNull()?.let { (it / 2f * 10f).toInt() }
 
         return if (details.kind == 2) {
-            // لو هو مسلسل، حاول جلب الحلقات إن كانت متوفرة في response (ملف فيديو موسم)
-            val episodes = mutableListOf<Episode>()
-            // بعض API يعيد موسم/حلقة في مكان آخر - هنا تعامل بسيط: لا حلقات افتراضياً
-            newTvSeriesLoadResponse(title, "cinemana:$id", TvType.TvSeries, episodes) {
+            newTvSeriesLoadResponse(title, id, TvType.TvSeries, emptyList()) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
                 this.rating = score
             }
         } else {
-            newMovieLoadResponse(title, "cinemana:$id", TvType.Movie, "cinemana:$id") {
+            newMovieLoadResponse(title, id, TvType.Movie, id) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
@@ -94,150 +72,75 @@ class CinemanaProvider : MainAPI() {
         }
     }
 
-    // -----------------------
-    // loadLinks: يبني روابط التشغيل والترجمات
-    // -----------------------
+    // تحميل روابط الفيديو والترجمات
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val id = extractId(data)
-        if (id.isBlank()) return false
-
+        val id = data.removePrefix("cinemana:")
         val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$id"
         val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$id"
 
         // روابط الفيديو
-        app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
-            // بعض الاستجابات قد تحتوي مفاتيح مختلفة
-            val videoUrl = videoMap.getString("video", "videoUrl", "file") ?: return@forEach
-            val resolution = videoMap.getString("resolution", "name") ?: "Unknown"
+        val videos = app.get(videosUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        videos.forEach { videoMap ->
+            val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
+            val resolution = videoMap["resolution"] as? String ?: "HD"
             newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
         }
 
         // الترجمات
-        app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
-            (list as? List<Map<String, Any>>)?.forEach { sub ->
-                val file = sub["file"] as? String ?: return@forEach
-                val lang = sub["name"] as? String ?: sub["type"] as? String ?: "Unknown"
-                subtitleCallback(SubtitleFile(lang, file))
-            }
+        val subsResponse = app.get(subtitlesUrl).parsedSafe<Map<String, Any>>() ?: emptyMap()
+        val translations = subsResponse["translations"] as? List<Map<String, Any>> ?: emptyList()
+        translations.forEach { sub ->
+            val file = sub["file"] as? String ?: return@forEach
+            val lang = sub["name"] as? String ?: "Unknown"
+            subtitleCallback(SubtitleFile(lang, file))
         }
 
-        return true
+        return videos.isNotEmpty()
     }
 
-    // -----------------------
-    // مساعدات لتحويل الـ Map ولإستخراج الحقول
-    // -----------------------
+    // بيانات الفيلم / المسلسل
     @Serializable
     data class CinemanaItem(
         val nb: String? = null,
         @SerialName("en_title") val enTitle: String? = null,
-        @SerialName("ar_title") val arTitle: String? = null,
         val imgObjUrl: String? = null,
         val img: String? = null,
         val year: String? = null,
         @SerialName("en_content") val enContent: String? = null,
-        @SerialName("ar_content") val arContent: String? = null,
         val stars: String? = null,
-        val kind: Int? = null,
-        val fileFile: String? = null
+        val kind: Int? = null
     )
 
-    // helper: القراءة من Map مع عدة مفاتيح محتملة
-    private fun Map<String, Any>.getString(vararg keys: String): String? {
-        for (k in keys) {
-            if (this.containsKey(k)) {
-                val v = this[k] ?: continue
-                return when (v) {
-                    is String -> v
-                    is Number -> v.toString()
-                    else -> v.toString()
-                }
-            }
-        }
-        return null
-    }
-
+    // تحويل Map الى CinemanaItem
     private fun Map<String, Any>.toCinemanaItem(): CinemanaItem {
-        // بعض ال endpoints قد ترجع الحقول تحت أسماء مختلفة، لذا نفحص عدة مفاتيح
-        val nb = getString("nb", "id", "videoId")
-        val enTitle = getString("en_title", "title", "video_title", "enTitle")
-        val arTitle = getString("ar_title", "title_ar")
-        val imgObjUrl = getString("imgObjUrl", "imgObj", "img", "imgMediumThumbObjUrl")
-        val img = getString("img", "imgObjUrl", "imgThumbObjUrl")
-        val year = getString("year", "mDate")
-        val enContent = getString("en_content", "description", "enContent")
-        val arContent = getString("ar_content")
-        val stars = getString("stars", "rate", "filmRating", "seriesRating")
-        val kindStr = getString("kind", "videoType")
-        val kind = kindStr?.toIntOrNull()
-        val fileFile = getString("fileFile", "file", "video")
-
         return CinemanaItem(
-            nb = nb,
-            enTitle = enTitle,
-            arTitle = arTitle,
-            imgObjUrl = imgObjUrl,
-            img = img,
-            year = year,
-            enContent = enContent,
-            arContent = arContent,
-            stars = stars,
-            kind = kind,
-            fileFile = fileFile
+            nb = this["nb"] as? String,
+            enTitle = this["en_title"] as? String,
+            imgObjUrl = this["imgObjUrl"] as? String,
+            img = this["img"] as? String,
+            year = this["year"] as? String,
+            enContent = this["en_content"] as? String,
+            stars = this["stars"] as? String,
+            kind = (this["kind"] as? String)?.toIntOrNull() ?: (this["kind"] as? Int)
         )
     }
 
-    private fun CinemanaItem.toSearchResponse(): SearchResponse? {
-        val id = this.nb ?: return null
-        // *** مهم جداً: ضع URL القيمة كـ ID فقط (سيتم استخراجها لاحقاً في load/loadLinks) ***
-        val storedUrl = id.toString()
-        return if (this.kind == 2) {
-            newTvSeriesSearchResponse(this.enTitle ?: this.arTitle ?: "No Title", storedUrl, TvType.TvSeries) {
-                this.posterUrl = this.imgObjUrl ?: this.img
+    // تحويل CinemanaItem الى SearchResponse
+    private fun CinemanaItem.toSearchResponse(): SearchResponse {
+        val validUrl = nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)
+        return if (kind == 2) {
+            newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
+                this.posterUrl = imgObjUrl ?: img
             }
         } else {
-            newMovieSearchResponse(this.enTitle ?: this.arTitle ?: "No Title", storedUrl, TvType.Movie) {
-                this.posterUrl = this.imgObjUrl ?: this.img
+            newMovieSearchResponse(enTitle ?: "No Title", validUrl, TvType.Movie) {
+                this.posterUrl = imgObjUrl ?: img
             }
         }
-    }
-
-    // -----------------------
-    // استخراج ID مرن من أي شكل للـ url
-    // يقبل: "799" أو "cinemana:799" أو "https://cinemana.../799" أو "799?showInfo=true"
-    // -----------------------
-    private fun extractId(raw: String?): String {
-        if (raw.isNullOrBlank()) return ""
-        var id = raw.trim()
-
-        // لو فيه بادئة خاصة نزيلها
-        if (id.contains("cinemana:")) {
-            id = id.substringAfter("cinemana:")
-        }
-
-        // لو هو رابط كامل خذ آخر جزء بعد '/'
-        if (id.startsWith("http://") || id.startsWith("https://")) {
-            id = id.substringAfterLast("/")
-        }
-
-        // decode percent-encoding (e.g. %3F -> ?)
-        try {
-            id = URLDecoder.decode(id, StandardCharsets.UTF_8.name())
-        } catch (e: Exception) {
-            // ignore
-        }
-
-        // أزل query params أو fragments
-        id = id.substringBefore("?").substringBefore("#").substringBefore("%3F")
-
-        // trim spaces
-        id = id.trim()
-
-        return id
     }
 }
