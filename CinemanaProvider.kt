@@ -1,7 +1,6 @@
 package com.cinemana
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -15,14 +14,14 @@ class CinemanaProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
 
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/$page/"
-        val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
+        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
+        val moviesAny = app.get(moviesUrl).parsedSafe<List<Any>>() ?: emptyList()
+        val movies = moviesAny.mapNotNull { (it as? Map<String, Any>)?.toCinemanaItem()?.toSearchResponse() }
         items.add(HomePageList("أحدث الأفلام", movies))
 
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/$page/"
-        val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
+        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
+        val seriesAny = app.get(seriesUrl).parsedSafe<List<Any>>() ?: emptyList()
+        val series = seriesAny.mapNotNull { (it as? Map<String, Any>)?.toCinemanaItem()?.toSearchResponse() }
         items.add(HomePageList("أحدث المسلسلات", series))
 
         return newHomePageResponse(items)
@@ -30,18 +29,18 @@ class CinemanaProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val moviesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Movies&videoTitle=$query"
-        val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
+        val moviesAny = app.get(moviesUrl).parsedSafe<List<Any>>() ?: emptyList()
+        val movies = moviesAny.mapNotNull { (it as? Map<String, Any>)?.toCinemanaItem()?.toSearchResponse() }
 
         val seriesUrl = "$mainUrl/api/android/AdvancedSearch?level=0&type=Series&videoTitle=$query"
-        val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
+        val seriesAny = app.get(seriesUrl).parsedSafe<List<Any>>() ?: emptyList()
+        val series = seriesAny.mapNotNull { (it as? Map<String, Any>)?.toCinemanaItem()?.toSearchResponse() }
 
         return movies + series
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val id = url.removePrefix("cinemana:")
+        val id = url.substringAfterLast(":") // التعامل مع "cinemana:799"
         val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
@@ -75,23 +74,22 @@ class CinemanaProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val id = data.removePrefix("cinemana:")
+        val id = data.substringAfterLast(":")
         val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$id"
         val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$id"
 
-        val videos = app.get(videosUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
-        videos.forEach { videoMap ->
+        app.get(videosUrl).parsedSafe<List<Any>>()?.mapNotNull { it as? Map<String, Any> }?.forEach { videoMap ->
             val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
             val resolution = videoMap["resolution"] as? String ?: "HD"
-            callback(newExtractorLink(name = resolution, url = videoUrl, source = name))
+            newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
         }
 
-        val subsMap = app.get(subtitlesUrl).parsedSafe<Map<String, Any>>() ?: emptyMap()
-        val translations = subsMap["translations"] as? List<Map<String, Any>> ?: emptyList()
-        translations.forEach { sub ->
-            val file = sub["file"] as? String ?: return@forEach
-            val lang = sub["name"] as? String ?: "Unknown"
-            subtitleCallback(SubtitleFile(lang, file))
+        app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
+            (list as? List<Map<String, Any>>)?.forEach { sub ->
+                val file = sub["file"] as? String ?: return@forEach
+                val lang = sub["name"] as? String ?: "Unknown"
+                subtitleCallback(SubtitleFile(lang, file))
+            }
         }
 
         return true
@@ -112,7 +110,7 @@ class CinemanaProvider : MainAPI() {
         return CinemanaItem(
             nb = this["nb"] as? String,
             enTitle = this["en_title"] as? String,
-            imgObjUrl = this["imgObjUrl"] as? String,
+            imgObjUrl = this["imgObjUrl"] as? String ?: this["img"] as? String,
             year = this["year"] as? String,
             enContent = this["en_content"] as? String,
             stars = this["stars"] as? String,
@@ -121,14 +119,14 @@ class CinemanaProvider : MainAPI() {
     }
 
     private fun CinemanaItem.toSearchResponse(): SearchResponse {
-        val validUrl = "cinemana:${nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)}"
+        val validUrl = "cinemana:${nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie) }"
         return if (kind == 2) {
             newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
-                posterUrl = imgObjUrl
+                this.posterUrl = imgObjUrl
             }
         } else {
             newMovieSearchResponse(enTitle ?: "No Title", validUrl, TvType.Movie) {
-                posterUrl = imgObjUrl
+                this.posterUrl = imgObjUrl
             }
         }
     }
