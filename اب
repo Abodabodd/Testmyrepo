@@ -1,11 +1,90 @@
-package com.cinemana
+package com.example.extension
 
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.BasePlugin
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.mvvm.safeApiCall
+import com.lagradost.cloudstream3.utils.*
+import com.lagradost.nicehttp.NiceResponse
 
-@CloudstreamPlugin
-class CinemanaPlugin : BasePlugin() {
-    override fun load() {
-        registerMainAPI(ShabakatyCinemanaProvider())
+class CinemanaProvider : MainAPI() {
+
+    override var mainUrl = "https://cinemana.shabakaty.com"
+    override var name = "Shabakaty Cinemana"
+    override val hasMainPage = true
+    override var lang = "ar"
+    override val hasDownloadSupport = true
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
+
+    override val mainPage = mainPageOf(
+        "$mainUrl/api/android/video/V/2/itemsPerPage/20/video_title_search/all/itemsPerPage/12/pageNumber/0/level/0" to "All Movies"
+    )
+
+    // بحث حسب العنوان
+    override suspend fun search(query: String): List<SearchResponse> {
+        val searchUrl = "$mainUrl/api/android/video/V/2/itemsPerPage/20/video_title_search/${query.encodeURL()}/itemsPerPage/12/pageNumber/0/level/0"
+        val res = app.get(searchUrl).parsed<CinemanaVideoList>()
+        return res.items.map { item ->
+            newMovieSearchResponse(item.en_title, "$mainUrl/${item.nb}", TvType.Movie) {
+                this.posterUrl = item.imgObjUrl
+            }
+        }
     }
+
+    // تحميل بيانات الفيلم عند الضغط عليه
+    override suspend fun load(url: String): LoadResponse? {
+        val id = url.substringAfterLast("/")
+
+        val info = app.get("$mainUrl/api/android/allVideoInfo/id/$id?showInfo=true").parsed<CinemanaVideoInfo>()
+        val poster = "https://cnth2.shabakaty.com/vascin-poster-images/${info.img}"
+
+        return newMovieLoadResponse(info.en_title, url, TvType.Movie, info.toJson()) {
+            this.posterUrl = poster
+            this.plot = info.en_content
+            this.year = info.year.toIntOrNull()
+            this.duration = info.duration.toIntOrNull()
+        }
+    }
+
+    // تحميل الروابط
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val info = parseJson<CinemanaVideoInfo>(data)
+        val videoUrl = "https://cnth2.shabakaty.com/vascin-video/${info.fileFile}" // بناء رابط الفيديو الحقيقي
+        callback.invoke(
+            newExtractorLink(info.en_title, info.en_title, videoUrl, ExtractorLinkType.MP4) {}
+        )
+        // الترجمات
+        info.translations.forEach { tr ->
+            subtitleCallback.invoke(
+                SubtitleFile(tr.file, tr.name)
+            )
+        }
+        return true
+    }
+
+    data class CinemanaVideoList(
+        @JsonProperty("items") val items: List<CinemanaVideoInfo>
+    )
+
+    data class CinemanaVideoInfo(
+        @JsonProperty("nb") val nb: String,
+        @JsonProperty("en_title") val en_title: String,
+        @JsonProperty("ar_title") val ar_title: String,
+        @JsonProperty("fileFile") val fileFile: String,
+        @JsonProperty("img") val img: String,
+        @JsonProperty("imgObjUrl") val imgObjUrl: String,
+        @JsonProperty("en_content") val en_content: String,
+        @JsonProperty("year") val year: String,
+        @JsonProperty("duration") val duration: String,
+        @JsonProperty("translations") val translations: List<TranslationFile>
+    )
+
+    data class TranslationFile(
+        @JsonProperty("file") val file: String,
+        @JsonProperty("name") val name: String
+    )
 }
