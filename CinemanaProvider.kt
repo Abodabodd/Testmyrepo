@@ -41,7 +41,7 @@ class CinemanaProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val id = url.removePrefix("cinemana:") // نستخدم فقط الرقم بعد "cinemana:"
+        val id = url.removePrefix("cinemana:")
         val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
@@ -57,14 +57,14 @@ class CinemanaProvider : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
-                this.rating = score
+                this.score = score
             }
         } else {
             newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
-                this.rating = score
+                this.score = score
             }
         }
     }
@@ -79,18 +79,19 @@ class CinemanaProvider : MainAPI() {
         val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$id"
         val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$id"
 
-        app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
+        val videos = app.get(videosUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        videos.forEach { videoMap ->
             val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
             val resolution = videoMap["resolution"] as? String ?: "HD"
-            newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
+            callback(newExtractorLink(name = resolution, url = videoUrl, source = name))
         }
 
-        app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
-            (list as? List<Map<String, Any>>)?.forEach { sub ->
-                val file = sub["file"] as? String ?: return@forEach
-                val lang = sub["name"] as? String ?: "Unknown"
-                subtitleCallback(SubtitleFile(lang, file))
-            }
+        val subsMap = app.get(subtitlesUrl).parsedSafe<Map<String, Any>>() ?: emptyMap()
+        val translations = subsMap["translations"] as? List<Map<String, Any>> ?: emptyList()
+        translations.forEach { sub ->
+            val file = sub["file"] as? String ?: return@forEach
+            val lang = sub["name"] as? String ?: "Unknown"
+            subtitleCallback(SubtitleFile(lang, file))
         }
 
         return true
@@ -122,20 +123,12 @@ class CinemanaProvider : MainAPI() {
     private fun CinemanaItem.toSearchResponse(): SearchResponse {
         val validUrl = "cinemana:${nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)}"
         return if (kind == 2) {
-            newTvSeriesSearchResponse(
-                title = enTitle ?: "No Title",
-                url = validUrl,
-                type = TvType.TvSeries
-            ) {
-                this.posterUrl = imgObjUrl
+            newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
+                posterUrl = imgObjUrl
             }
         } else {
-            newMovieSearchResponse(
-                title = enTitle ?: "No Title",
-                url = validUrl,
-                type = TvType.Movie
-            ) {
-                this.posterUrl = imgObjUrl
+            newMovieSearchResponse(enTitle ?: "No Title", validUrl, TvType.Movie) {
+                posterUrl = imgObjUrl
             }
         }
     }
