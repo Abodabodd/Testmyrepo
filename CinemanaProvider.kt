@@ -1,6 +1,7 @@
 package com.cinemana
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -14,12 +15,14 @@ class CinemanaProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
 
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
+        // أحدث الأفلام
+        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/$page/"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث الأفلام", movies))
 
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
+        // أحدث المسلسلات
+        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/$page/"
         val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث المسلسلات", series))
@@ -40,7 +43,6 @@ class CinemanaProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        // url الآن يكون فقط رقم ID
         val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$url"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
@@ -49,42 +51,51 @@ class CinemanaProvider : MainAPI() {
         val posterUrl = details.imgObjUrl
         val plot = details.enContent
         val year = details.year?.toIntOrNull()
-        val score = details.stars?.toFloatOrNull()?.let { (it / 2f * 10f).toInt() }
-
-        // تحميل روابط الفيديو مباشرة
-        val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$url"
-        val videoLinks = app.get(videosUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
+        val scoreValue = details.stars?.toFloatOrNull()?.div(2f) // Score من 0.0 إلى 10.0
 
         return if (details.kind == 2) {
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, emptyList()) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
-                this.score = score
-                // روابط الحلقات يمكن تمريرها للExtractor لاحقاً
-                videoLinks.forEach { v ->
-                    val videoUrl = v["videoUrl"] as? String ?: return@forEach
-                    val resolution = v["resolution"] as? String ?: "HD"
-                    newExtractorLink(source = name, name = resolution, url = videoUrl).let { link ->
-                        addLink(link)
-                    }
-                }
+                this.score = scoreValue
             }
         } else {
             newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
-                this.score = score
-                videoLinks.forEach { v ->
-                    val videoUrl = v["videoUrl"] as? String ?: return@forEach
-                    val resolution = v["resolution"] as? String ?: "HD"
-                    newExtractorLink(source = name, name = resolution, url = videoUrl).let { link ->
-                        addLink(link)
-                    }
-                }
+                this.score = scoreValue
             }
         }
+    }
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$data"
+        val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$data"
+
+        // روابط الفيديو
+        app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
+            val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
+            val resolution = videoMap["resolution"] as? String ?: "HD"
+            newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
+        }
+
+        // الترجمة
+        app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
+            (list as? List<Map<String, Any>>)?.forEach { sub ->
+                val file = sub["file"] as? String ?: return@forEach
+                val lang = sub["name"] as? String ?: "Unknown"
+                subtitleCallback(SubtitleFile(lang, file))
+            }
+        }
+
+        return true
     }
 
     @Serializable
