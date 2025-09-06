@@ -6,6 +6,19 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 
+// احتفظ بهذا كما هو، لكننا سنضيف حقل fileFile إليه
+// @Serializable
+// data class CinemanaItem(
+//     val nb: String? = null,
+//     @SerialName("en_title") val enTitle: String? = null,
+//     val imgObjUrl: String? = null,
+//     val year: String? = null,
+//     @SerialName("en_content") val enContent: String? = null,
+//     val stars: String? = null,
+//     val kind: Int? = null,
+//     val fileFile: String? = null // إضافة هذا الحقل
+// )
+
 class CinemanaProvider : MainAPI() {
     override var name = "Shabakaty Cinemana"
     override var mainUrl = "https://cinemana.shabakaty.com"
@@ -45,7 +58,7 @@ class CinemanaProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$url"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
-        val details = detailsMap.toCinemanaItem()
+        val details = detailsMap.toCinemanaItem() // تأكد من أن toCinemanaItem يمكنها تحليل fileFile
 
         val title = details.enTitle ?: return null
         val posterUrl = details.imgObjUrl
@@ -61,6 +74,7 @@ class CinemanaProvider : MainAPI() {
                 this.score = scoreValue
             }
         } else {
+            // هنا، url الذي يتم تمريره إلى loadLinks هو في الواقع ID (nb)
             newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = posterUrl
                 this.plot = plot
@@ -71,29 +85,69 @@ class CinemanaProvider : MainAPI() {
     }
 
     override suspend fun loadLinks(
-        data: String,
+        data: String, // 'data' هنا هو الـ ID (nb) للفيلم أو المسلسل
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // الخطوة 1: أعد جلب تفاصيل الفيديو الكاملة (allVideoInfo)
+        // لأنها تحتوي على رابط ملف الفيديو وروابط الترجمة مباشرة.
+        val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$data"
+        val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>()
+
+        // إذا فشل جلب التفاصيل، لا يمكننا الحصول على الروابط
+        if (detailsMap == null) {
+            // يمكن إضافة سجل خطأ هنا للمساعدة في التصحيح
+            // Log.e(name, "Failed to fetch allVideoInfo for ID: $data")
+            return false
+        }
+
+        // الخطوة 2: استخراج رابط الفيديو
+        val videoFileName = detailsMap["fileFile"] as? String
+        if (videoFileName != null) {
+            // بناء رابط الفيديو الكامل
+            // بناءً على نمط روابط الصور والترجمة، غالبًا ما تكون ملفات الفيديو تحت
+            // https://cnth2.shabakaty.com/vascin-video-files/
+            val fullVideoUrl = "https://cnth2.shabakaty.com/vascin-video-files/$videoFileName"
+            newExtractorLink(source = name, name = "Default", url = fullVideoUrl).let(callback)
+        } else {
+            // Log.e(name, "No video file found in allVideoInfo for ID: $data")
+            // يمكن أن تكون هناك حالات لا يوجد فيها ملف فيديو (على سبيل المثال، إذا كان مجرد إدخال معلومات)
+            // إذا لم يتم العثور على رابط فيديو، فسيؤدي هذا إلى خطأ "Error loading"
+            return false
+        }
+
+        // الخطوة 3: استخراج روابط الترجمة
+        (detailsMap["translations"] as? List<Map<String, Any>>)?.forEach { sub ->
+            val file = sub["file"] as? String // هذا هو الرابط المباشر للملف
+            val lang = sub["name"] as? String
+            if (file != null && lang != null) {
+                subtitleCallback(SubtitleFile(lang, file))
+            }
+        }
+
+        // أزل أو علّق على الأجزاء القديمة التي كانت تستدعي transcoddedFiles و translationFiles
+        // لأننا نستخدم الآن allVideoInfo مباشرة
+        /*
         val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$data"
         val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$data"
 
-        // روابط الفيديو
+        // روابط الفيديو الأصلية
         app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
             val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
             val resolution = videoMap["resolution"] as? String ?: "HD"
             newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
         }
 
-        // الترجمة
-        app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
+        // الترجمة الأصلية
+        app.get(subtitlesUrl).parsedSafe<Map<Map<String, Any>>>()?.get("translations")?.let { list ->
             (list as? List<Map<String, Any>>)?.forEach { sub ->
                 val file = sub["file"] as? String ?: return@forEach
                 val lang = sub["name"] as? String ?: "Unknown"
                 subtitleCallback(SubtitleFile(lang, file))
             }
         }
+        */
 
         return true
     }
@@ -106,7 +160,8 @@ class CinemanaProvider : MainAPI() {
         val year: String? = null,
         @SerialName("en_content") val enContent: String? = null,
         val stars: String? = null,
-        val kind: Int? = null
+        val kind: Int? = null,
+        val fileFile: String? = null // *** تأكد من إضافة هذا الحقل هنا ***
     )
 
     private fun Map<String, Any>.toCinemanaItem(): CinemanaItem {
@@ -117,7 +172,8 @@ class CinemanaProvider : MainAPI() {
             year = this["year"] as? String,
             enContent = this["en_content"] as? String,
             stars = this["stars"] as? String,
-            kind = (this["kind"] as? String)?.toIntOrNull() ?: (this["kind"] as? Int)
+            kind = (this["kind"] as? String)?.toIntOrNull() ?: (this["kind"] as? Int),
+            fileFile = this["fileFile"] as? String // *** وتأكد من تحليله هنا ***
         )
     }
 
