@@ -1,12 +1,12 @@
 package com.cinemana
 
-data class CinemanaSearchResponse(
-    val items: List<CinemanaItem>
-)
+import android.content.Context
+import com.lagradost.cloudstream3.plugins.Plugin
+import com.lagradost.cloudstream3.plugins.registerMainAPI
 
-data class CinemanaItem(
-    val id: Int,
-    val title: String,
-    val productionYear: Int?,
-    val poster: String?
-)
+@CloudstreamPlugin
+class CinemanaProviderPlugin: Plugin() {
+    override fun load(context: Context) {
+        registerMainAPI(CinemanaProvider())
+    }
+}
