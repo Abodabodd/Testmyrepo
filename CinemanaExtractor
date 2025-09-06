@@ -1,0 +1,30 @@
+package com.cinemana
+
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.ExtractorApi
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.M3u8Helper.Companion.generateM3u8
+import java.net.URI
+
+class CinemanaExtractor : ExtractorApi() {
+    override val mainUrl = "https://cinemana.shabakaty.com"
+    override val name = "Cinemana Extractor"
+    override val requiresReferer = false
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val id = url.substringAfterLast("/") // نحصل على رقم الفيديو فقط
+        val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$id"
+        val videos = app.get(videosUrl).parsedSafe<List<Map<String, Any>>>() ?: return
+
+        videos.forEach { v ->
+            val videoUrl = v["videoUrl"] as? String ?: return@forEach
+            val resolution = v["resolution"] as? String ?: "HD"
+            generateM3u8(name, videoUrl, "").forEach(callback)
+        }
+    }
+}
