@@ -15,12 +15,12 @@ class CinemanaProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
 
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
+        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/$page/"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث الأفلام", movies))
 
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
+        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/$page/"
         val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث المسلسلات", series))
@@ -41,7 +41,7 @@ class CinemanaProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val id = url.removePrefix("cinemana:") // دعم رابط ID
+        val id = url.removePrefix("cinemana:") // نستخدم فقط الرقم بعد "cinemana:"
         val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
@@ -111,7 +111,7 @@ class CinemanaProvider : MainAPI() {
         return CinemanaItem(
             nb = this["nb"] as? String,
             enTitle = this["en_title"] as? String,
-            imgObjUrl = this["imgObjUrl"] as? String ?: this["img"] as? String,
+            imgObjUrl = this["imgObjUrl"] as? String,
             year = this["year"] as? String,
             enContent = this["en_content"] as? String,
             stars = this["stars"] as? String,
@@ -122,17 +122,21 @@ class CinemanaProvider : MainAPI() {
     private fun CinemanaItem.toSearchResponse(): SearchResponse {
         val validUrl = "cinemana:${nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)}"
         return if (kind == 2) {
-            val response = newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
+            newTvSeriesSearchResponse(
+                title = enTitle ?: "No Title",
+                url = validUrl,
+                type = TvType.TvSeries
+            ) {
                 this.posterUrl = imgObjUrl
             }
-            response.url = validUrl // var وليس val
-            response
         } else {
-            val response = newMovieSearchResponse(enTitle ?: "No Title", TvType.Movie) {
+            newMovieSearchResponse(
+                title = enTitle ?: "No Title",
+                url = validUrl,
+                type = TvType.Movie
+            ) {
                 this.posterUrl = imgObjUrl
             }
-            response.url = validUrl // var وليس val
-            response
         }
     }
 }
