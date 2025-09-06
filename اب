@@ -1,52 +1,12 @@
 package com.cinemana
 
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.LoadResponse
-import com.lagradost.cloudstream3.SearchResponse
-import org.json.JSONObject
+data class CinemanaSearchResponse(
+    val items: List<CinemanaItem>
+)
 
-class CinemanaProvider : MainAPI() {
-    override var mainUrl = "https://cinemana.shabakaty.com"
-    override var name = "Shabakaty Cinemana"
-    override val lang = "ar"
-    override val hasMainPage = true
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    // البحث
-    override suspend fun search(query: String): List<SearchResponse> {
-        val url =
-            "$mainUrl/api/android/video/V/2/itemsPerPage/20/video_title_search/${query.fix()}"
-
-        val json = app.get(url).parsedSafe<CinemanaSearchResponse>() ?: return emptyList()
-
-        return json.items.mapNotNull { item ->
-            val poster = item.poster?.replace(" ", "%20")
-            newMovieSearchResponse(
-                name = item.title,
-                url = item.id.toString(),
-                type = TvType.Movie
-            ) {
-                this.posterUrl = poster
-                this.year = item.productionYear
-            }
-        }
-    }
-
-    // تحميل صفحة الفيلم/المسلسل
-    override suspend fun load(url: String): LoadResponse? {
-        val apiUrl = "$mainUrl/api/android/allVideoInfo/id/$url?showInfo=true"
-
-        val data = app.get(apiUrl).text
-        val json = JSONObject(data)
-
-        val title = json.optString("title") ?: return null
-        val poster = json.optString("poster")
-        val plot = json.optString("story")
-
-        return newMovieLoadResponse(title, url, TvType.Movie, mainUrl) {
-            this.posterUrl = poster
-            this.plot = plot
-        }
-    }
-}
+data class CinemanaItem(
+    val id: Int,
+    val title: String,
+    val productionYear: Int?,
+    val poster: String?
+)
