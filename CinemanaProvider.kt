@@ -15,12 +15,12 @@ class CinemanaProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = mutableListOf<HomePageList>()
 
-        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/$page/"
+        val moviesUrl = "$mainUrl/api/android/latestMovies/level/0/itemsPerPage/24/page/0/"
         val moviesResponse = app.get(moviesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val movies = moviesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث الأفلام", movies))
 
-        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/$page/"
+        val seriesUrl = "$mainUrl/api/android/latestSeries/level/0/itemsPerPage/24/page/0/"
         val seriesResponse = app.get(seriesUrl).parsedSafe<List<Map<String, Any>>>() ?: emptyList()
         val series = seriesResponse.map { it.toCinemanaItem().toSearchResponse() }
         items.add(HomePageList("أحدث المسلسلات", series))
@@ -41,8 +41,7 @@ class CinemanaProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        // استخراج الـ ID من url المرسل
-        val id = url.removePrefix("cinemana:")
+        val id = url.removePrefix("cinemana:") // دعم رابط ID
         val detailsUrl = "$mainUrl/api/android/allVideoInfo/id/$id"
         val detailsMap = app.get(detailsUrl).parsedSafe<Map<String, Any>>() ?: return null
         val details = detailsMap.toCinemanaItem()
@@ -80,14 +79,12 @@ class CinemanaProvider : MainAPI() {
         val videosUrl = "$mainUrl/api/android/transcoddedFiles/id/$id"
         val subtitlesUrl = "$mainUrl/api/android/translationFiles/id/$id"
 
-        // جلب الفيديوهات
         app.get(videosUrl).parsedSafe<List<Map<String, Any>>>()?.forEach { videoMap ->
             val videoUrl = videoMap["videoUrl"] as? String ?: return@forEach
             val resolution = videoMap["resolution"] as? String ?: "HD"
             newExtractorLink(source = name, name = resolution, url = videoUrl).let(callback)
         }
 
-        // جلب الترجمات
         app.get(subtitlesUrl).parsedSafe<Map<String, Any>>()?.get("translations")?.let { list ->
             (list as? List<Map<String, Any>>)?.forEach { sub ->
                 val file = sub["file"] as? String ?: return@forEach
@@ -125,13 +122,17 @@ class CinemanaProvider : MainAPI() {
     private fun CinemanaItem.toSearchResponse(): SearchResponse {
         val validUrl = "cinemana:${nb ?: return newMovieSearchResponse("Error", "error", TvType.Movie)}"
         return if (kind == 2) {
-            newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
+            val response = newTvSeriesSearchResponse(enTitle ?: "No Title", validUrl, TvType.TvSeries) {
                 this.posterUrl = imgObjUrl
             }
+            response.url = validUrl // var وليس val
+            response
         } else {
-            newMovieSearchResponse(enTitle ?: "No Title", validUrl, TvType.Movie) {
+            val response = newMovieSearchResponse(enTitle ?: "No Title", TvType.Movie) {
                 this.posterUrl = imgObjUrl
             }
+            response.url = validUrl // var وليس val
+            response
         }
     }
 }
