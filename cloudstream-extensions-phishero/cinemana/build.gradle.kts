@@ -1,0 +1,11 @@
+version = 1
+
+cloudstream {
+    description = "Cinemana 4K Movies & Series Extension"
+    language = "ar"
+    authors = listOf("Abdullah")
+    status = 1
+    tvTypes = listOf("Movie","TvSeries")
+    iconUrl = "https://cnth2.shabakaty.com/vascin-poster-images/1407224577_poster.jpg"
+    isCrossPlatform = false
+}
