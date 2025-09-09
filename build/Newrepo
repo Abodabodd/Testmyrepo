@@ -1,8 +1,0 @@
-{
-    "name": "Arabico temp",
-    "description": "Updating the Cloudstream Arabic Provider. Feel free to join the Cloudstream Discord server for the latest information.",
-    "manifestVersion": 1,
-    "pluginLists": [
-      "https://raw.githubusercontent.com/Abodabodd/Testmyrepo/main/build/Repo.json"
-    ]
-  }
