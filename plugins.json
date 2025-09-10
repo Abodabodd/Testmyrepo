@@ -1,5 +1,24 @@
 [
   {
+    "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjXYRCgXdHTs-hdcOKs1ooTW5plsBI7CWbsA&s",
+    "apiVersion": 1,
+    "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
+    "fileSize": 16392,
+    "status": 1,
+    "language": "ar",
+    "authors": [
+      "Abodabodd"
+    ],
+    "tvTypes": [
+      "TvSeries",
+      "Movie"
+    ],
+    "version": 16,
+    "internalName": "Arabseed",
+    "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/build/Arabseed.cs3",
+    "name": "Arabseed"
+  },
+  {
     "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZlAGH56cEnNEL93W3QqZWpUe8XR8i90olTA&s",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
@@ -33,9 +52,9 @@
       "Movie"
     ],
     "version": 16,
-    "internalName": "Shabakaty Cinemana",
+    "internalName": "Shabakaty Cinemana slow",
     "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/cinemana.cs3",
-    "name": "Shabakaty Cinemana"
+    "name": "Shabakaty Cinemana slow"
   },
   {
     "iconUrl": "https://www.google.com/s2/favicons?domain=cimanow.cc&sz=%size%",
