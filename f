@@ -1,96 +1,231 @@
- addFromUrl = https://a.asd.homes/%d9%81%d9%8a%d9%84%d9%85-dead-girl-summer-2025-%d9%85%d8%aa%d8%b1%d8%ac%d9%85/
-2025-09-15 14:16:42.068  6985-7090  SYNCUTIL                com...adost.cloudstream3.prerelease  I  getIdsFromUrl https://a.asd.homes/%d9%81%d9%8a%d9%84%d9%85-dead-girl-summer-2025-%d9%85%d8%aa%d8%b1%d8%ac%d9%85/
-2025-09-15 14:16:42.078  6985-6985  SurfaceView             com...adost.cloudstream3.prerelease  D  UPDATE null, mIsCastMode = false
-2025-09-15 14:16:42.089  6985-6985  CoilImgLoader           com...adost.cloudstream3.prerelease  E  Error loading image: java.lang.IllegalStateException: Unable to create a fetcher that supports: 
-2025-09-15 14:16:42.090  6985-6985  SurfaceView             com...adost.cloudstream3.prerelease  D  UPDATE Surface(name=SurfaceView[com.lagradost.cloudstream3.prerelease/com.lagradost.cloudstream3.MainActivity])/@0x98b8d21, mIsProjectionMode = false
-2025-09-15 14:16:48.628  6672-10750 collectorManager        com.miui.powerkeeper                 D  ThermalScenarioValue setForegroundCounts: com.lagradost.cloudstream3.prerelease
-2025-09-15 14:16:55.355  1987-2758  MIUIInput               system_server                        D  [MotionEvent] publisher action=0x0, 2336751, channel 'fbdaea9 com.lagradost.cloudstream3.prerelease/com.lagradost.cloudstream3.MainActivity (server)'
-2025-09-15 14:16:55.456  1987-2758  MIUIInput               system_server                        D  [MotionEvent] publisher action=0x1, 2336854, channel 'fbdaea9 com.lagradost.cloudstream3.prerelease/com.lagradost.cloudstream3.MainActivity (server)'
-2025-09-15 14:16:55.468  6985-6985  RepoLink                com...adost.cloudstream3.prerelease  I  goto 0
-2025-09-15 14:16:55.468  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  newInstance = {}
-2025-09-15 14:16:55.468  6985-6985  NavComponent            com...adost.cloudstream3.prerelease  I  Navigating to fragment: 2131362280
-2025-09-15 14:16:55.481  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  onStop
-2025-09-15 14:16:55.482  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  saveData
-2025-09-15 14:16:55.482  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  handleEvent Pause
-2025-09-15 14:16:55.483  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  unwrapBundle = null
-2025-09-15 14:16:55.483  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  unwrapBundle = Bundle[{resumePosition=0, syncData={}}]
-2025-09-15 14:16:55.509  6985-6985  ScrollerOp...ionManager com...adost.cloudstream3.prerelease  D  registerConfigChangedListener
-2025-09-15 14:16:55.524  6985-6985  ScrollerOp...ionManager com...adost.cloudstream3.prerelease  D  registerConfigChangedListener
-2025-09-15 14:16:55.528  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  SET STYLE = SaveCaptionStyle(foregroundColor=-5194043, backgroundColor=0, windowColor=0, edgeType=1, edgeColor=-16777216, typeface=null, typefaceFilePath=null, elevation=20, fixedTextSize=31.0, edgeSize=null, removeCaptions=false, removeBloat=true, upperCase=false, bold=false, italic=false, backgroundRadius=null)
-2025-09-15 14:16:55.532  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  unwrapBundle = null
-2025-09-15 14:16:55.532  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  unwrapBundle = Bundle[{resumePosition=0, syncData={}}]
-2025-09-15 14:16:55.533  6985-6985  PlayViewGen             com...adost.cloudstream3.prerelease  I  loadLinks
-2025-09-15 14:16:55.533  6985-8765  SYNCVM                  com...adost.cloudstream3.prerelease  I  updateUserData
-2025-09-15 14:16:55.533  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  setActiveSubtitles 0
-2025-09-15 14:16:55.533  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  autoSelectFromSettings = null
-2025-09-15 14:16:55.628  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  reloadPlayer
-2025-09-15 14:16:55.628  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  releasePlayer
-2025-09-15 14:16:55.628  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  Handle event: PlayerAttachedEvent(player=null, source=Player)
-2025-09-15 14:16:55.636  6985-6985  DecorView[MainActivity] com...adost.cloudstream3.prerelease  D  getWindowModeFromSystem  windowmode is 1
-2025-09-15 14:16:55.636  6985-6985  DecorView[MainActivity] com...adost.cloudstream3.prerelease  D  updateDecorCaptionStatus windowMode is 1
-2025-09-15 14:16:55.671  6985-6985  DecorView[MainActivity] com...adost.cloudstream3.prerelease  D  getWindowModeFromSystem  windowmode is 1
-2025-09-15 14:16:55.671  6985-6985  DecorView[MainActivity] com...adost.cloudstream3.prerelease  D  updateDecorCaptionStatus windowMode is 1
-2025-09-15 14:16:55.717  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportNextDraw android.view.ViewRootImpl.performTraversals:4013 android.view.ViewRootImpl.doTraversal:2725 android.view.ViewRootImpl$TraversalRunnable.run:9812 android.view.Choreographer$CallbackRecord.run:1505 android.view.Choreographer$CallbackRecord.run:1513 
-2025-09-15 14:16:55.717  6985-6985  SurfaceView             com...adost.cloudstream3.prerelease  D  UPDATE null, mIsCastMode = false
-2025-09-15 14:16:55.720  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.Setup new sync id=7 syncSeqId=0
-2025-09-15 14:16:55.720  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=0
-2025-09-15 14:16:55.720  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=0
-2025-09-15 14:16:55.727  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportDrawFinished syncSeqId=0 android.view.ViewRootImpl.lambda$createSyncIfNeeded$4$android-view-ViewRootImpl:4081 android.view.ViewRootImpl$$ExternalSyntheticLambda2.run:6 android.os.Handler.handleCallback:942 android.os.Handler.dispatchMessage:99 android.os.Looper.loopOnce:211 
-2025-09-15 14:16:55.729  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  setActiveSubtitles 0
-2025-09-15 14:16:55.729  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  autoSelectFromSettings = null
-2025-09-15 14:16:55.730  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  releasePlayer
-2025-09-15 14:16:55.730  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  Handle event: PlayerAttachedEvent(player=null, source=Player)
-2025-09-15 14:16:55.731  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportNextDraw android.view.ViewRootImpl.handleResized:2083 android.view.ViewRootImpl.-$$Nest$mhandleResized:0 android.view.ViewRootImpl$ViewRootHandler.handleMessageImpl:6167 android.view.ViewRootImpl$ViewRootHandler.handleMessage:6136 android.os.Handler.dispatchMessage:106 
-2025-09-15 14:16:55.753  6985-6985  SurfaceView             com...adost.cloudstream3.prerelease  D  UPDATE Surface(name=SurfaceView[com.lagradost.cloudstream3.prerelease/com.lagradost.cloudstream3.MainActivity])/@0xf4e235, mIsProjectionMode = false
-2025-09-15 14:16:55.760  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.Setup new sync id=8 syncSeqId=0
-2025-09-15 14:16:55.760  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=0
-2025-09-15 14:16:55.760  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=1
-2025-09-15 14:16:55.760  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=0
-2025-09-15 14:16:55.760  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=1
-2025-09-15 14:16:55.770  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportDrawFinished syncSeqId=0 android.view.ViewRootImpl.lambda$createSyncIfNeeded$4$android-view-ViewRootImpl:4081 android.view.ViewRootImpl$$ExternalSyntheticLambda2.run:6 android.os.Handler.handleCallback:942 android.os.Handler.dispatchMessage:99 android.os.Looper.loopOnce:211 
-2025-09-15 14:16:55.771  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportNextDraw android.view.ViewRootImpl.handleResized:2083 android.view.ViewRootImpl.-$$Nest$mhandleResized:0 android.view.ViewRootImpl$ViewRootHandler.handleMessageImpl:6167 android.view.ViewRootImpl$ViewRootHandler.handleMessage:6136 android.os.Handler.dispatchMessage:106 
-2025-09-15 14:16:55.771  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportNextDraw android.view.ViewRootImpl.handleResized:2083 android.view.ViewRootImpl.-$$Nest$mhandleResized:0 android.view.ViewRootImpl$ViewRootHandler.handleMessageImpl:6167 android.view.ViewRootImpl$ViewRootHandler.handleMessage:6136 android.os.Handler.dispatchMessage:106 
-2025-09-15 14:16:55.773  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.Setup new sync id=9 syncSeqId=0
-2025-09-15 14:16:55.773  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=0
-2025-09-15 14:16:55.773  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=1
-2025-09-15 14:16:55.773  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=0
-2025-09-15 14:16:55.773  6985-6985  SurfaceSyncer           com...adost.cloudstream3.prerelease  E  Failed to find sync for id=1
-2025-09-15 14:16:55.781  6985-6985  SurfaceView             com...adost.cloudstream3.prerelease  D  UPDATE null, mIsCastMode = false
-2025-09-15 14:16:55.796  6985-6985  VRI[MainActivity]       com...adost.cloudstream3.prerelease  D  vri.reportDrawFinished syncSeqId=0 android.view.ViewRootImpl.lambda$createSyncIfNeeded$4$android-view-ViewRootImpl:4081 android.view.ViewRootImpl$$ExternalSyntheticLambda2.run:6 android.os.Handler.handleCallback:942 android.os.Handler.dispatchMessage:99 android.os.Looper.loopOnce:211 
-2025-09-15 14:16:55.901  5237-5237  GoogleInpu...hodService com...gle.android.inputmethod.latin  I  GoogleInputMethodService.onStartInput():1318 onStartInput(EditorInfo{EditorInfo{packageName=com.lagradost.cloudstream3.prerelease, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[{hand_writing_keyboard_type=1}], hintText=null, hintLocales=[]}}, true)
-2025-09-15 14:16:57.411  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Bigwarp 719 kbps, url=https://fs71.bigwarp.io/v/01/01401/lbsh6fxl5cri_x/x.mp4?t=I2_Gy1NZg6Mf-7tvIFae-3C8bwGI5hnDXxwfj0k_v_s&s=1757935017&e=43200&f=7009012&sp=1000&i=0.0&kmnr=357873918675, referer=https://bigwarp.io/embed-lbsh6fxl5cri.html, type=VIDEO)
-2025-09-15 14:16:57.413  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Bigwarp 936 kbps, url=https://fs71.bigwarp.io/v/01/01401/lbsh6fxl5cri_o/o.mp4?t=Gm_Ak7teFJo3FEAOlP7OyDrfzc1uMkoq6mR7dd8iXn0&s=1757935017&e=43200&f=7009012&sp=600&i=0.0&kmnr=357873918675, referer=https://bigwarp.io/embed-lbsh6fxl5cri.html, type=VIDEO)
-2025-09-15 14:16:57.429  6985-8765  M3u8Helper              com...adost.cloudstream3.prerelease  I  M3u8 Playlist is not a "Master Playlist" nor a "Media Playlist". Removing this link as it is invalid and will not open in player: https://up-1164-de.vmwesa.online/hls/,xqx2oiuwyvokjiqbthisdliou3xd22z3hbe76ofu23fomabh3p7upv53ozta,.urlset/master.m3u8
-2025-09-15 14:16:57.477  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Bigwarp 2319 kbps, url=https://fs72.bigwarp.io/v/01/01401/253zzpqd17ox_x/x.mp4?t=FaPuiIWQCEoycwomnE6rZHBQ6-yuj5kGCSGsuYGzB2I&s=1757935017&e=43200&f=7008140&sp=1000&i=0.0&kmnr=281717015964, referer=https://bigwarp.io/embed-253zzpqd17ox.html, type=VIDEO)
-2025-09-15 14:16:57.477  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Bigwarp 2428 kbps, url=https://fs72.bigwarp.io/v/01/01401/253zzpqd17ox_o/o.mp4?t=PJXWMp-LLZar7rs35mUfWVUICnhkf_exRPbVjTvNYq0&s=1757935017&e=43200&f=7008140&sp=600&i=0.0&kmnr=281717015964, referer=https://bigwarp.io/embed-253zzpqd17ox.html, type=VIDEO)
-2025-09-15 14:16:57.583  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Bigwarp 1225 kbps, url=https://fs70.bigwarp.io/v/01/01401/wm2wbwvr46e6_x/x.mp4?t=xuAqYmB83H0K1lZb-f3eqlTILlOjXjUKiejy2P55in8&s=1757935017&e=43200&f=7008661&sp=1000&i=0.0&kmnr=192081506579, referer=https://bigwarp.io/embed-wm2wbwvr46e6.html, type=VIDEO)
-2025-09-15 14:16:57.583  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Bigwarp 1633 kbps, url=https://fs70.bigwarp.io/v/01/01401/wm2wbwvr46e6_o/o.mp4?t=d5amu9MGtvsdMo4322fbt-5bH-VbQmYIO9mP2IISdNY&s=1757935017&e=43200&f=7008661&sp=600&i=0.0&kmnr=192081506579, referer=https://bigwarp.io/embed-wm2wbwvr46e6.html, type=VIDEO)
-2025-09-15 14:16:58.066  6985-8765  M3u8Helper              com...adost.cloudstream3.prerelease  I  M3u8 Playlist is not a "Master Playlist" nor a "Media Playlist". Removing this link as it is invalid and will not open in player: https://box-1335-u.vmwes.cloud/hls/,xqx2pguvyvokjiqbthisd6cbwuq2cvh7ntyakn6kdmjheplxmnbtdnkpmenq,.urlset/master.m3u8
-2025-09-15 14:16:58.550  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe, url=https://cdn-p7xh0or5dp3h6tfm.orbitcache.com/engine/hls2/01/15357/6bwgpanbufv4_,l,.urlset/index-v1-a1.m3u8?t=gRg34DYdP13vaqdHJ1SnNbGK2_Ml_KYXfsCfIwZhau8&s=1757935018&e=14400&f=76789865&node=6ulR/OxUUMCsqJIQSWHjwr0fJXNyI+Kk0KgF5VgTCHQ=&i=169.224&sp=2500&asn=199739&q=l&rq=P8raQ8kdtSrudIOBEcWFb8WnK0DDrWkSgUC5KwVP, referer=https://voe.sx/, type=M3U8)
-2025-09-15 14:16:58.550  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe, url=https://cdn-p7xh0or5dp3h6tfm.orbitcache.com/engine/hls2/01/15357/6bwgpanbufv4_,l,.urlset/master.m3u8?t=gRg34DYdP13vaqdHJ1SnNbGK2_Ml_KYXfsCfIwZhau8&s=1757935018&e=14400&f=76789865&node=6ulR/OxUUMCsqJIQSWHjwr0fJXNyI+Kk0KgF5VgTCHQ=&i=169.224&sp=2500&asn=199739&q=l&rq=P8raQ8kdtSrudIOBEcWFb8WnK0DDrWkSgUC5KwVP, referer=https://voe.sx/, type=M3U8)
-2025-09-15 14:16:58.550  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe MP4, url=https://cdn-p7xh0or5dp3h6tfm.orbitcache.com/engine/download/01/15357/6bwgpanbufv4_l.mp4?t=_udqw6EhsuR2H-2WF6v8ar80KzYUYQ4WBktUZj0N1ag&s=1757935018&e=14400&f=76789865&node=6ulR/OxUUMCsqJIQSWHjwr0fJXNyI+Kk0KgF5VgTCHQ=&i=169.224&sp=380&asn=199739&n=arabsed.Dead.Girl.Summer.2025.480p.AMZN.WEB.mp4&d=1, referer=https://voe.sx/e/6bwgpanbufv4, type=VIDEO)
-2025-09-15 14:16:58.653  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe, url=https://cdn-z7bcj1oywfrzq0b0.orbitcache.com/engine/hls2/01/15357/t2scetlxwimc_,n,.urlset/index-v1-a1.m3u8?t=fUUYRihuo2YmJqy6j3xwk3JvBNUGBpi9SK9F-tQCNGE&s=1757935018&e=14400&f=76789664&node=4prfljwBg7uQxcwds15DlI0pMtNpyl+mDjROq3/I74I=&i=169.224&sp=2500&asn=199739&q=n&rq=wDfHTjNRg0sGOq24YFnB065D3C6TfUqN5Nz3kPKq, referer=https://voe.sx/, type=M3U8)
-2025-09-15 14:16:58.653  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe, url=https://cdn-z7bcj1oywfrzq0b0.orbitcache.com/engine/hls2/01/15357/t2scetlxwimc_,n,.urlset/master.m3u8?t=fUUYRihuo2YmJqy6j3xwk3JvBNUGBpi9SK9F-tQCNGE&s=1757935018&e=14400&f=76789664&node=4prfljwBg7uQxcwds15DlI0pMtNpyl+mDjROq3/I74I=&i=169.224&sp=2500&asn=199739&q=n&rq=wDfHTjNRg0sGOq24YFnB065D3C6TfUqN5Nz3kPKq, referer=https://voe.sx/, type=M3U8)
-2025-09-15 14:16:58.653  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe MP4, url=https://cdn-z7bcj1oywfrzq0b0.orbitcache.com/engine/download/01/15357/t2scetlxwimc_n.mp4?t=vgLhK7nmmBwWCMba6zd3kYEIZvDzqQsit3PkApEVGj0&s=1757935018&e=14400&f=76789664&node=4prfljwBg7uQxcwds15DlI0pMtNpyl+mDjROq3/I74I=&i=169.224&sp=380&asn=199739&n=arabsed.Dead.Girl.Summer.2025.720p.AMZN.WEB.mp4&d=1, referer=https://voe.sx/e/t2scetlxwimc, type=VIDEO)
-2025-09-15 14:16:58.655  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe, url=https://cdn-thhhlmzuxvpehc9r.orbitcache.com/engine/hls2/01/15357/asw34v64sths_,n,.urlset/index-v1-a1.m3u8?t=DkGc4qrypl16XlOHJ0j3FdY0lKrgk3CDw2bmVvs0JwE&s=1757935018&e=14400&f=76789434&node=2GPWTtaVSvybP8oKFkXoBZzmQmp3zH80o/N0HZ69qmM=&i=169.224&sp=2500&asn=199739&q=n&rq=Z5ezNR1gOzmFUpx94xYWByJi1ATW5EU6EaxZ2yip, referer=https://voe.sx/, type=M3U8)
-2025-09-15 14:16:58.656  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe, url=https://cdn-thhhlmzuxvpehc9r.orbitcache.com/engine/hls2/01/15357/asw34v64sths_,n,.urlset/master.m3u8?t=DkGc4qrypl16XlOHJ0j3FdY0lKrgk3CDw2bmVvs0JwE&s=1757935018&e=14400&f=76789434&node=2GPWTtaVSvybP8oKFkXoBZzmQmp3zH80o/N0HZ69qmM=&i=169.224&sp=2500&asn=199739&q=n&rq=Z5ezNR1gOzmFUpx94xYWByJi1ATW5EU6EaxZ2yip, referer=https://voe.sx/, type=M3U8)
-2025-09-15 14:16:58.656  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=Voe MP4, url=https://cdn-thhhlmzuxvpehc9r.orbitcache.com/engine/download/01/15357/asw34v64sths_n.mp4?t=cIbs1CKwledvgmdU-EqYZUq51ohuzlF_s6lTsL3J4O8&s=1757935018&e=14400&f=76789434&node=2GPWTtaVSvybP8oKFkXoBZzmQmp3zH80o/N0HZ69qmM=&i=169.224&sp=380&asn=199739&n=arabsed.Dead.Girl.Summer.2025.1080p.AMZN.WEB.mp4&d=1, referer=https://voe.sx/e/asw34v64sths, type=VIDEO)
-2025-09-15 14:16:58.687  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=FileMoonSx, url=https://be2719.rcr22.ams01.i8yz83pn.com/hls2/02/09864/dxj0xl10crdh_x/index-v1-a1.m3u8?t=cHkHNMJySNHC7FaoLUS1cioDVTs6zw1L16JjuQFnCIQ&s=1757935018&e=10800&f=49320456&srv=1050&asn=199739&sp=5500&p=, referer=https://filemoon.sx, type=M3U8)
-2025-09-15 14:16:58.687  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=FileMoonSx, url=https://be2719.rcr22.ams01.i8yz83pn.com/hls2/02/09864/dxj0xl10crdh_x/master.m3u8?t=cHkHNMJySNHC7FaoLUS1cioDVTs6zw1L16JjuQFnCIQ&s=1757935018&e=10800&f=49320456&srv=1050&asn=199739&sp=5500&p=, referer=https://filemoon.sx, type=M3U8)
-2025-09-15 14:16:58.739  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=FileMoonSx, url=https://be7713.rcr82.waw05.i8yz83pn.com/hls2/08/09863/w71koubu27ra_x/index-v1-a1.m3u8?t=5JW0c-mwVCpAjGTnv_z9JQxMhrOpuRdgo9iFuMQhNMI&s=1757935018&e=10800&f=49319346&srv=1065&asn=199739&sp=5500&p=, referer=https://filemoon.sx, type=M3U8)
-2025-09-15 14:16:58.739  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=FileMoonSx, url=https://be7713.rcr82.waw05.i8yz83pn.com/hls2/08/09863/w71koubu27ra_x/master.m3u8?t=5JW0c-mwVCpAjGTnv_z9JQxMhrOpuRdgo9iFuMQhNMI&s=1757935018&e=10800&f=49319346&srv=1065&asn=199739&sp=5500&p=, referer=https://filemoon.sx, type=M3U8)
-2025-09-15 14:16:58.938  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=FileMoonSx, url=https://be7713.rcr82.waw05.i8yz83pn.com/hls2/08/09863/mv4yp9rpom73_x/index-v1-a1.m3u8?t=DIJNsgnM9KLSGWOcQxID8mqBzblBcGtPcsjT9b-HqPA&s=1757935018&e=10800&f=49319858&srv=1055&asn=199739&sp=5500&p=, referer=https://filemoon.sx, type=M3U8)
-2025-09-15 14:16:58.938  6985-8765  RepoLink                com...adost.cloudstream3.prerelease  D  Loaded ExtractorLink: ExtractorLink(name=FileMoonSx, url=https://be7713.rcr82.waw05.i8yz83pn.com/hls2/08/09863/mv4yp9rpom73_x/master.m3u8?t=DIJNsgnM9KLSGWOcQxID8mqBzblBcGtPcsjT9b-HqPA&s=1757935018&e=10800&f=49319858&srv=1055&asn=199739&sp=5500&p=, referer=https://filemoon.sx, type=M3U8)
-2025-09-15 14:17:02.811  6985-8765  M3u8Helper              com...adost.cloudstream3.prerelease  I  M3u8 Playlist is not a "Master Playlist" nor a "Media Playlist". Removing this link as it is invalid and will not open in player: https://upload-transit-eu-2x.vmrange.lat/hls/,xqx2psuvyvokjiqbthisd7kfujjl64kig3asvop43hz7dsvc3fv6xwhw6ctq,.urlset/master.m3u8
-2025-09-15 14:17:02.820  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  loadPlayer
-2025-09-15 14:17:02.820  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  releasePlayer
-2025-09-15 14:17:02.821  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  Handle event: PlayerAttachedEvent(player=null, source=Player)
-2025-09-15 14:17:02.821  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  loadOnlinePlayer ExtractorLink(name=Bigwarp 2319 kbps, url=https://fs72.bigwarp.io/v/01/01401/253zzpqd17ox_x/x.mp4?t=FaPuiIWQCEoycwomnE6rZHBQ6-yuj5kGCSGsuYGzB2I&s=1757935017&e=43200&f=7008140&sp=1000&i=0.0&kmnr=281717015964, referer=https://bigwarp.io/embed-253zzpqd17ox.html, type=VIDEO)
-2025-09-15 14:17:02.821  6985-8765  PreviewImgMp4           com...adost.cloudstream3.prerelease  I  Loading with url = https://fs72.bigwarp.io/v/01/01401/253zzpqd17ox_x/x.mp4?t=FaPuiIWQCEoycwomnE6rZHBQ6-yuj5kGCSGsuYGzB2I&s=1757935017&e=43200&f=7008140&sp=1000&i=0.0&kmnr=281717015964 headers = {referer=https://bigwarp.io/embed-253zzpqd17ox.html}
-2025-09-15 14:17:02.821  6985-8765  MediaHTTPService        com...adost.cloudstream3.prerelease  V  MediaHTTPService(android.media.MediaHTTPService@36fc532): Cookies: null
-2025-09-15 14:17:02.823  6985-8765  MediaHTTPService        com...adost.cloudstream3.prerelease  V  makeHTTPConnection: CookieHandler (java.net.CookieManager@1f14051) exists.
-2025-09-15 14:17:02.823  6985-8765  MediaHTTPService        com...adost.cloudstream3.prerelease  V  makeHTTPConnection(android.media.MediaHTTPService@36fc532): cookieHandler: java.net.CookieManager@1f14051 Cookies: null
-2025-09-15 14:17:02.827  6985-6985  CS3ExoPlayer            com...adost.cloudstream3.prerelease  I  loadExo
-2025-09-15 14:17:02.834  6985-6985  ExoPlayerImpl           com...adost.cloudstream3.prerelease  I  Init 6f80c00 [AndroidXMedia3/1.6.1] [alioth, M2012K11AG, Xiaomi, 33]
-2025-09-15 14:17:02.835  6985-6985  NextRenderersFactory    com...adost.cloudstream3.prerelease  I  Loaded FfmpegVideoRenderer.
-2025-09-15 14:17:02.835  6985-6985  NextRenderersFactory    com...adost.cloudstream3.prerelease  I  Loaded FfmpegAudioRenderer.
+package com.arabseed
+
+import android.util.Log
+// لقد قمت بحذف السطر الخاطئ من هنا
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.*
+import org.jsoup.Jsoup
+import com.lagradost.cloudstream3.network.CloudflareKiller
+import kotlinx.serialization.Serializable
+
+class Arabseed : MainAPI() {
+    override var mainUrl = "https://a.asd.homes"
+    override var name = "Arabseed"
+    override var lang = "ar"
+    override val hasMainPage = true
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
+    private fun String.toAbsolute(): String {
+        if (this.isBlank()) return ""
+        return when {
+            this.startsWith("http") -> this
+            this.startsWith("//") -> "https:$this"
+            else -> mainUrl.trimEnd('/') + "/" + this.trimStart('/')
+        }
+    }
+
+    private fun getPoster(element: org.jsoup.nodes.Element): String? {
+        return element.selectFirst("img")?.let { img ->
+            img.attr("data-src").ifBlank { img.attr("src") }.toAbsolute()
+        }
+    }
+
+    // ================== Search ==================
+    override suspend fun search(query: String): List<SearchResponse> {
+        val url = "$mainUrl/find/?word=${query.trim().replace(" ", "+")}"
+        val document = app.get(url).document
+        return document.select("ul.blocks__ul > li").mapNotNull {
+            val a = it.selectFirst("a.movie__block") ?: return@mapNotNull null
+            val href = a.attr("href").toAbsolute()
+            val title = a.attr("title").ifBlank { a.selectFirst("h3")?.text() } ?: return@mapNotNull null
+            val posterUrl = getPoster(a)
+            val isMovie = href.contains("/%d9%81%d9%8a%d9%84%d9%85-") // /فيلم-
+            val tvType = if (isMovie) TvType.Movie else TvType.TvSeries
+
+            newMovieSearchResponse(title, href, tvType) {
+                this.posterUrl = posterUrl
+            }
+        }
+    }
+
+    // ================== Main Page ==================
+    override val mainPage = mainPageOf(
+        "$mainUrl/main0/" to "الرئيسية",
+        "$mainUrl/recently/" to "مضاف حديثا",
+        "$mainUrl/trend/" to "الأكثر مشاهدة",
+        "$mainUrl/movies/" to "أفلام",
+        "$mainUrl/series/" to "مسلسلات"
+    )
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val url = if (page > 1) "${request.data}page/$page/" else request.data
+        val document = app.get(url).document
+        val items = document.select(".movie__block, .series__box > a").mapNotNull {
+            val title = it.selectFirst("h3")?.text() ?: return@mapNotNull null
+            val href = it.attr("href").toAbsolute()
+            val posterUrl = getPoster(it)
+            newMovieSearchResponse(title, href, TvType.Movie) { // Defaulting to movie, load will determine correct type
+                this.posterUrl = posterUrl
+            }
+        }
+        return newHomePageResponse(request.name, items)
+    }
+
+    @Serializable
+    data class AjaxResponse(
+        val html: String?,
+        val hasmore: Boolean?
+    )
+
+    // ================== Load ==================
+    override suspend fun load(url: String): LoadResponse {
+        val doc = app.get(url).document
+        val title = doc.selectFirst("h1.post__name")?.text()?.trim() ?: "غير معروف"
+        val poster = doc.selectFirst(".poster__side .poster__single img, .single__cover img")
+            ?.attr("src")?.toAbsolute()
+        val synopsis = doc.selectFirst(".post__story > p")?.text()?.trim()
+
+        val episodes = mutableListOf<Episode>()
+
+        // Initial episodes on page
+        doc.select("ul.episodes__list li a").forEach { epEl ->
+            val epHref = epEl.attr("href").toAbsolute()
+            val epTitle = epEl.selectFirst(".epi__num")?.text()?.trim() ?: epEl.text().trim()
+            val epNum = epTitle.let { Regex("""\d+""").find(it)?.value?.toIntOrNull() }
+            episodes.add(newEpisode(epHref) {
+                name = epTitle
+                episode = epNum
+                posterUrl = poster // Assign series poster to episode
+            })
+        }
+
+        // AJAX load more episodes
+        doc.selectFirst("div.load__more__episodes")?.let { loadMoreButton ->
+            val seasonId = loadMoreButton.attr("data-id")
+            val csrfToken = doc.select("script").html()
+                .let { Regex("""'csrf__token':\s*"([^"]+)""").find(it)?.groupValues?.get(1) }
+
+            if (seasonId.isNotBlank() && !csrfToken.isNullOrBlank()) {
+                var hasMore = true
+                while (hasMore) {
+                    try {
+                        val response = app.post(
+                            "$mainUrl/season__episodes/",
+                            data = mapOf(
+                                "season_id" to seasonId,
+                                "offset" to episodes.size.toString(),
+                                "csrf_token" to csrfToken
+                            ),
+                            referer = url,
+                            headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                        ).parsedSafe<AjaxResponse>()
+
+                        if (response?.html.isNullOrBlank() || response?.hasmore != true) {
+                            hasMore = false
+                        } else {
+                            val newEpisodesDoc = Jsoup.parse(response.html)
+                            val newEpisodeElements = newEpisodesDoc.select("li a")
+
+                            if (newEpisodeElements.isEmpty()) {
+                                hasMore = false
+                            } else {
+                                newEpisodeElements.forEach { epEl ->
+                                    val epHref = epEl.attr("href").toAbsolute()
+                                    val epTitle = epEl.selectFirst(".epi__num")?.text()?.trim()
+                                        ?: epEl.text().trim()
+                                    val epNum = epTitle.let { Regex("""\d+""").find(it)?.value?.toIntOrNull() }
+
+                                    episodes.add(newEpisode(epHref) {
+                                        name = epTitle
+                                        episode = epNum
+                                        posterUrl = poster // Assign series poster to episode
+                                    })
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(name, "AJAX load more error", e)
+                        hasMore = false
+                    }
+                }
+            }
+        }
+
+        val isTvSeries = episodes.isNotEmpty() || url.contains("/selary/")
+
+        return if (isTvSeries) {
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinctBy { it.data }.reversed()) {
+                this.posterUrl = poster
+                this.plot = synopsis
+            }
+        } else {
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = poster
+                this.plot = synopsis
+            }
+        }
+    }
+
+    @Serializable
+    data class ServerResponse(val server: String?)
+
+    // ================== Load Links ==================
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val episodePageDoc = app.get(data).document
+        val watchUrl = episodePageDoc.selectFirst("a.btton.watch__btn")?.attr("href")?.toAbsolute()
+            ?: return false
+
+        val watchPageDoc = app.get(watchUrl, referer = data).document
+        val csrfToken = watchPageDoc.select("script").html()
+            .let { Regex("""'csrf__token':\s*"([^"]+)""").find(it)?.groupValues?.get(1) }
+            ?: return false
+        val postId = watchPageDoc.selectFirst(".servers__list li")?.attr("data-post") ?: return false
+
+        // Iterate through each quality switcher
+        watchPageDoc.select(".quality__swither ul.qualities__list li").apmap { qualityElement ->
+            val quality = qualityElement.attr("data-quality")
+
+            // Get servers for this quality via AJAX
+            val serversHtml = app.post(
+                "$mainUrl/get__quality__servers/",
+                data = mapOf("post_id" to postId, "quality" to quality, "csrf_token" to csrfToken),
+                referer = watchUrl,
+                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+            ).parsedSafe<AjaxResponse>()?.html ?: return@apmap
+
+            Jsoup.parse(serversHtml).select("li").apmap { serverElement ->
+                val serverId = serverElement.attr("data-server")
+                val serverName = serverElement.selectFirst("span")?.text()?.trim() ?: "Server"
+
+                try {
+                    app.post(
+                        "$mainUrl/get__watch__server/",
+                        data = mapOf(
+                            "post_id" to postId,
+                            "quality" to quality,
+                            "server" to serverId,
+                            "csrf_token" to csrfToken
+                        ),
+                        referer = watchUrl,
+                        headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                    ).parsedSafe<ServerResponse>()?.server?.let { iframeUrl ->
+                        // Add quality to the name when calling the extractor
+                        loadExtractor(iframeUrl, watchUrl, subtitleCallback) { link ->
+                            callback(
+                                link.copy(name = "$name - $serverName - ${quality}p")
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(name, "Failed to get server URL for quality $quality", e)
+                }
+            }
+        }
+
+        return true
+    }
+}
