@@ -1,1 +1,4 @@
-https://r466--7umzmh0e.c.scdns.io/stream/v1/hls/0mdvwxaisrv4qgjzHmD9OA/1758568081/www.faselhds.life/all/169.224.95.120/no/IQ/0/07-02/1/b44638d9f2569e99171f94791d35bfdb/155_hd720b_playlist.m3u8
+
+https://cimanow.cc/wp-content/themes/Cima%20Now%20New/core.php?action=switch&index=12&id=121292
+
+https://cimanow.cc/%d9%81%d9%8a%d9%84%d9%85-%d8%b1%d8%b3%d8%a7%d9%84%d8%a9-%d8%a7%d9%84%d8%a7%d9%85%d8%a7%d9%85-2025/watching/
