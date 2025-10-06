@@ -1,226 +1,79 @@
-<HTML>
-    <HEAD>
-        <title>Watch [arabseed] Turco S01E03 1080p</title>
-        <meta name="description" content="Watch [arabseed] Turco S01E03 1080p">
-        <meta name="keywords" content="Watch [arabseed] Turco S01E03 1080p">
-        <meta name="robots" content="nofollow, noindex">
-        <link rel="stylesheet" href="/css/main.css">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <meta name="theme-color" content="#FFF">
-        <script src="/js/jquery.min.js"></script>
-        <script src="/js/xupload.js"></script>
-        <script src="/js/jquery.cookie.js"></script>
-        <!-- Google tag (gtag.js) -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-2TL7NH453R"></script>
-        <script>
-            window.dataLayer = window.dataLayer || [];
-            function gtag() {
-                dataLayer.push(arguments);
-            }
-            gtag('js', new Date());
+import re, requests, json
+from urllib.parse import urljoin
 
-            gtag('config', 'G-2TL7NH453R');
-        </script>
-        <!-- Google tag (gtag.js) -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-E2BG6CPV2J"></script>
-        <script>
-            window.dataLayer = window.dataLayer || [];
-            function gtag() {
-                dataLayer.push(arguments);
-            }
-            gtag('js', new Date());
+HEADERS_BASE = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+    ),
+}
+TIMEOUT = 12
 
-            gtag('config', 'G-E2BG6CPV2J');
-        </script>
-        <!-- Yandex.Metrika counter -->
-        <script type="text/javascript">
-            (function(m, e, t, r, i, k, a) {
-                m[i] = m[i] || function() {
-                    (m[i].a = m[i].a || []).push(arguments)
-                }
-                ;
-                m[i].l = 1 * new Date();
-                for (var j = 0; j < document.scripts.length; j++) {
-                    if (document.scripts[j].src === r) {
-                        return;
-                    }
-                }
-                k = e.createElement(t),
-                a = e.getElementsByTagName(t)[0],
-                k.async = 1,
-                k.src = r,
-                a.parentNode.insertBefore(k, a)
-            }
-            )(window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+def unpack_packer_simple(js):
+    """يفك eval-packer من نوع eval(function(p,a,c,k,e,d)...)"""
+    m = re.search(
+        r"eval\(function\(p,a,c,k,e,d\)\{.*?\}\(\s*['\"](.*?)['\"]\s*,\s*(\d+)\s*,\s*\d+\s*,\s*['\"](.*?)['\"]",
+        js, re.S)
+    if not m:
+        return None
+    payload, radix, sympipe = m.groups()
+    radix = int(radix)
+    symtab = sympipe.split("|")
+    token_re = re.compile(r"\b[0-9a-zA-Z]+\b")
+    def repl(mo):
+        tok = mo.group(0)
+        try:
+            idx = int(tok, radix)
+            return symtab[idx] if 0 <= idx < len(symtab) else tok
+        except:
+            return tok
+    return token_re.sub(repl, payload)
 
-            ym(102872415, "init", {
-                clickmap: true,
-                trackLinks: true,
-                accurateTrackBounce: true,
-                webvisor: true
-            });
-        </script>
-        <noscript>
-            <div>
-                <img src="https://mc.yandex.ru/watch/102872415" style="position:absolute; left:-9999px;" alt=""/>
-            </div>
-        </noscript>
-        <!-- /Yandex.Metrika counter -->
-        <script>
-            $.cookie('file_id', '48438289', {
-                expires: 10
-            });
-            $.cookie('aff', '364', {
-                expires: 10
-            });
-            $.cookie('ref_url', 'shhahid4u.cam', {
-                expires: 10
-            });
+def extract_hls4_link(page_url):
+    # إعداد الـ Headers مع Referer خاص لـ EarnVids
+    headers = HEADERS_BASE.copy()
+    if "fdewsdc.sbs" in page_url:
+        headers["Referer"] = "https://shhahid4u.cam"
+        print("🌐 تم تعيين Referer: https://shhahid4u.cam")
 
-            var pickDirect = function(idads, link) {
-                var d = document.createElement('script');
-                d.textContent = `var  __directlink${idads}={
-								init:function() {
-									var link = '${link}';
-									var div = document.createElement('div');
-									var h = window.innerHeight, w = window.innerWidth;
-									div.setAttribute('style', 'position:fixed;inset:0px;z-index:2147483647;background:black;opacity:0.01;height:'+h+'px;width:'+w+'px;cursor:pointer');
-									div.onclick = function () {
-										this.parentNode.removeChild(this);
-										window.open(link, '_blank');
-									};
-									document.body.appendChild(div);
-								}
-							};
-							__directlink${idads}.init();`;
-                document.body.appendChild(d);
-            }
-        </script>
-    </HEAD>
-    <BODY topmargin=0 leftmargin=0 style="background:transparent;">
-        <div style="position:relative;">
-            <div id="adbd" class="overdiv">
-                <div>
-                    Please turn off AdBlock to view this video!
-					
-                    <p>
-                        <a href="#" onclick="location.reload();" class="btn">Reload Page</a>
-                    </p>
-                </div>
-            </div>
-            <script type='text/javascript' src='/player/jw8/jwplayer.js?v=7'></script>
-            <script type="text/javascript">
-                jwplayer.key = "ITWMv7t88JGzI0xPwW8I0+LveiXX9SWbfdmt0ArUSyc=";
-            </script>
-            <script src="/js/localstorage-slim.js"></script>
-            <div id='vplayer' style="width:100%;height:100%;text-align:center;">
-                <img src="https://pixoraa.cc/gxvdnc0xtj19_xt.jpg" style="width:100%;height:100%;">
-            </div>
-            <style>
-                .jw-icon-display, .jw-text, .jw-button-color, .jw-time-tip {
-                    color: #1db0ef !important;
-                }
+    # جلب الصفحة
+    r = requests.get(page_url, headers=headers, timeout=TIMEOUT)
+    if r.status_code != 200:
+        print("❌ HTTP", r.status_code)
+        return None
 
-                .jw-time-tip span {
-                    background: #1db0ef !important;
-                    color: #fff !important;
-                }
+    if "eval(function" not in r.text:
+        print("❌ لا يوجد eval في الصفحة.")
+        return None
 
-                .jw-featured, .jw-rightclick {
-                    display: none !important;
-                }
+    unpacked = unpack_packer_simple(r.text)
+    if not unpacked:
+        print("❌ فشل فكّ packer.")
+        return None
 
-                div.jw-icon-rewind {
-                    display: none;
-                    xdisplay: inherit;
-                }
+    # نبحث عن var links = {...}
+    m = re.search(r"var\s+links\s*=\s*(\{.*?\});", unpacked, re.S)
+    if not m:
+        print("❌ لم يُعثر على كائن links.")
+        return None
 
-                .jw-display-icon-container .jw-icon-inline {
-                    display: none;
-                }
-            </style>
-        </div>
-        <script type='text/javascript'>
-            eval(function(p, a, c, k, e, d) {
-                while (c--)
-                    if (k[c])
-                        p = p.replace(new RegExp('\\b' + c.toString(a) + '\\b','g'), k[c]);
-                return p
-            }('j 5y=[];j o={"1b":"1d://6a.cr.cq/2y/1b/69/68/67,l,n,h,.66/3q.cp","1e":"/co/cn/cm/cl/1s/3q.65","1a":"1d://6a.ck.2o/1a/69/68/67,l,n,h,.66/3q.65?t=cj-ci&s=2l&e=ch&f=1s&cg=2y&i=0.4&cf=ce&cd=2y&cb=2y&ca=c9"};1c("c8").c7({c6:"1",c5:[{1i:o.1e||o.1b||o.1a,3a:"39"}],c4:"1d://63.cc/c3.61",c2:"3p%",c1:"3p%",c0:"bz",by:"64.14",bx:\'bw\',bv:{bu:{2w:"#2x",bt:"#2x"},bs:{br:"#2x"},bq:{2w:"#2x"}},bp:"1q",p:[{1i:"/2n?2m=bo&1m=64&bn=1d://63.cc/bm.61",bl:"bk"}],3z:{bj:1,bi:\'#5z\',bh:\'#5z\',bg:"bf",be:0,bd:\'3p\',},"bc":{"bb":"5w","ba":"b9"},\'b8\':{"b7":"b6","b5":"b4","b3":"b2"},b1:"b0",az:"1d://ay.2o",ax:{},aw:1q,3y:[0.25,0.5,0.75,1,1.25,1.5,2]});j 3k,3o;j av=0,au=0,at=0;j a=1c();j 2q=0,1t=0,as=0,y=0;$.ar({aq:{\'ap-ao\':\'an-am\'}});a.15(\'5x\',k(x){b(5>0&&x.1g>=5&&3o!=1){3o=1;$(\'1r.al\').ak(\'aj\')}j 3n=0;5y.ai(u=>{b(u.5x<=x.1g&&u.5p==0){b(u.5u==\'5w\'){b(u.1l.5t(\'1d://\')){a.5v(u.1l)}1h{j 2u=3m 5s().5r(u.1l,"2w/2k");u.1l="23:ah/ag;af,"+ae(ad(ac(2u.5q.2s)));a.5v(u.1l)}}1h b(u.5u==\'ab\'){aa(3n,u.1l)}1h{j 1k=u.1l.a9();j 16=22.5l(\'16\');b(1k.5t(\'1d://\')){16.5k=1k;16.a8=1q}1h{j 2u=3m 5s().5r(1k,"2w/2k");1k=2u.5q.2s;j 2t=1k.2t(/<16[^>]*>([\\s\\a7]*?)<\\/16>/i);b(2t){16.2s=2t[1]}1h{16.2s=1k}}22.5b.5a(16)}u.5p=1}3n++});b(x.1g>=y+5||x.1g<y){y=x.1g;2d.a6(\'2a\',a5.a4(y),{a3:60*60*24*7})}b(x.a2){2r=x.1g-2q;b(2r>5)2r=1;1t+=2r}2q=x.1g;3e.3d(1t);b(1t>=60){$.a1(\'1d://a0.9z.2o/2n\',{2m:\'9y\',3i:\'1s-3h-28-2l-3g\',9x:9w(1t),9v:1s,9u:\'3j\'},k(){},"9t");1t=0}});a.15(\'1x\',k(x){2q=x.1g});a.15(\'4a\',k(x){5n(x)});a.15(\'9s\',k(){$(\'1r.5m\').9r();2d.9q(\'2a\')});a.15(\'9p\',k(x){});k 9o(1u,5o,2g){j 2p=3m 9n();2p.9m(2p.9l()+(2g*9k));22.9j=1u+"="+5o+"; 9i="+2p.9h()+"; 9g=.9f.9e; 1z=/; 9d=9c; 9b"}k 5n(x){$(\'1r.5m\').3c();$(\'#9a\').3c();b(3k)26;3k=1;3f=0;99 20=22.5l(\'16\');20.5k=\'1d://98.97.2o/5j/94/93.5j\';20.92=()=>{$.2b(\'/2n?2m=5i&5h=3j&3i=1s-3h-28-2l-3g&5g=1&5f=5e.5d&3f=1&1e=1\',k(23){$(\'#5c\').2k(23)})};20.91=()=>{$.2b(\'/2n?2m=5i&5h=3j&3i=1s-3h-28-2l-3g&5g=1&5f=5e.5d&3f=0&1e=1\',k(23){$(\'#5c\').2k(23)})};22.5b.5a(20);j y=2d.2b(\'2a\');b(y>0){1c().1x(y)}}k 90(){j p=a.31(59);3e.3d(p);b(p.1m>1){3t(i=0;i<p.1m;i++){b(p[i].1u==59){3e.3d(\'!!=\'+i);a.3r(i)}}}}a.15(\'49\',k(){1c().38(\'<w 4u="4t://4s.4r.4q/4p/w" 4o="g-w-1j g-w-1j-8z" 4n="0 0 2i 2i" 4m="1n"><1z d="m 25.8y,57.8x v 8w.3 c 0.8v,2.8u 2.8t,4.8s 4.8,4.8 h 62.7 v -19.3 h -48.2 v -96.4 58 8r.8q v 19.3 c 0,5.3 3.6,7.2 8,4.3 l 41.8,-27.9 c 2.8p,-1.8o 4.8n,-5.8m 2.7,-8 -0.8l,-1.8k -1.8j,-2.8i -2.7,-2.7 l -41.8,-27.9 c -4.4,-2.9 -8,-1 -8,4.3 v 19.3 58 30.8h c -2.8g,0.8f -4.8e,2.8d -4.9,4.9 z m 8c.8b,73.8a c -3.56,-6.55 -10.54,-10.53 -17.7,-10.6 -7.52,0.50 -13.4z,4.4y -17.7,10.6 -8.2j,14.4x -8.2j,32.4w 0,46.3 3.56,6.55 10.54,10.53 17.7,10.6 7.52,-0.50 13.4z,-4.4y 17.7,-10.6 8.2j,-14.4x 8.2j,-32.4w 0,-46.3 z m -17.7,47.2 c -7.8,0 -14.4,-11 -14.4,-24.1 0,-13.1 6.6,-24.1 14.4,-24.1 7.8,0 14.4,11 14.4,24.1 0,13.1 -6.5,24.1 -14.4,24.1 z m -47.89,9.88 v -51 l -4.8,4.8 -6.8,-6.8 13,-12.87 c 3.86,-3.85 8.84,-0.83 8.2,3.4 v 62.82 z"></1z></w>\',"81 10 2g",k(){1c().1x(1c().4g()+10)},"4v");$("1r[4f=4v]").4d().4c(\'.g-1j-2e\');1c().38(\'<w 4u="4t://4s.4r.4q/4p/w" 4o="g-w-1j g-w-1j-2e" 4n="0 0 2i 2i" 4m="1n"><1z d="80.2,7z.7y.1f,21.1f,0,0,0-17.7-10.6,21.1f,21.1f,0,0,0-17.7,10.6,44.2h,44.2h,0,0,0,0,46.3,21.1f,21.1f,0,0,0,17.7,10.6,21.1f,21.1f,0,0,0,17.7-10.6,44.2h,44.2h,0,0,0,0-46.7x-17.7,47.2c-7.8,0-14.4-11-14.4-24.7w.6-24.1,14.4-24.1,14.4,11,14.4,24.7u.4,4l.7t,95.5,4l.7s-43.4,9.7v-7r-4.8,4.8-6.8-6.8,13-7q.8,4.8,0,0,1,8.2,3.7p.7l-9.6-.7o-7n.7m.7k.4k,4.4k,0,0,1-4.8,4.7j.6v-19.7i.2v-96.7h.7g.7f,5.3-3.6,7.2-8,4.3l-41.8-27.7e.4j,6.4j,0,0,1-2.7-8,5.4i,5.4i,0,0,1,2.7-2.7d.8-27.7c.4-2.9,8-1,8,4.7b.7a.79.4h,4.4h,0,0,1,78.1,57.77"></1z></w>\',"76 10 2g",k(){j 2f=1c().4g()-10;b(2f<0)2f=0;1c().1x(2f)},"4e");$("1r[4f=4e]").4d().4c(\'.g-1j-2e\');$("1r.g-1j-2e").3c()});a.15(\'74\',k(1v){j 1w=a.45().1i;j 4b=a.72().p||[];j 1y=71;b(1w===o.1e){1y=o.1b||o.1a}1h b(1w===o.1b){1y=o.1a}b(1y){a.3b([{1i:1y,p:4b}]);a.4a();a.70(\'6z\',k(){j y=2d.2b(\'2a\');b(y){a.1x(y)}});26 1q}});a.15(\'49\',k(){j 1w=a.45().1i;b(o.1e&&1w===o.1e){6y(o.1e,{6x:\'6w\'}).6u(42=>{b(!42.6t&&(o.1b||o.1a)){a.40();a.3b([{1i:o.1b||o.1a,3a:"39"}]);}}).6s(()=>{b(o.1b||o.1a){a.40();a.3b([{1i:o.1b||o.1a,3a:"39"}]);}})}});a.15("18",k(1v){j p=a.31();b(p.1m<2)26;$(\'.g-r-6r-6q\').6p(k(){$(\'#g-r-q-18\').35(\'g-r-q-29\');$(\'.g-q-18\').1p(\'1o-36\',\'1n\')});a.38("/6o/6n.w","6m 6l",k(){$(\'.g-3x\').6k(\'g-r-3w\');$(\'.g-r-3z, .g-r-3y\').1p(\'1o-37\',\'1n\');b($(\'.g-3x\').6j(\'g-r-3w\')){$(\'.g-q-18\').1p(\'1o-37\',\'1q\');$(\'.g-q-18\').1p(\'1o-36\',\'1q\');$(\'.g-r-q-6i\').35(\'g-r-q-29\');$(\'.g-r-q-18\').6h(\'g-r-q-29\')}1h{$(\'.g-q-18\').1p(\'1o-37\',\'1n\');$(\'.g-q-18\').1p(\'1o-36\',\'1n\');$(\'.g-r-q-18\').35(\'g-r-q-29\')}},"6g");a.15("6f",k(1v){34.6e(\'33\',1v.p[1v.6d].1u)});b(34.3v(\'33\')){6c("3u(34.3v(\'33\'));",6b)}});j 2z;k 3u(3s){j p=a.31();b(p.1m>1){3t(i=0;i<p.1m;i++){b(p[i].1u==3s){b(i==2z){26}2z=i;a.3r(i)}}}}', 36, 460, '||||||||||player|if|||||jw|||var|function||||links|tracks|submenu|settings|||item||svg||lastt|||||||on|script||audioTracks||hls2|hls3|jwplayer|https|hls4|589|position|else|file|icon|code|link|length|false|aria|attr|true|div|48438289|tott|name|event|currentFile|seek|newFile|path|ggima||document|data|||return|||active|ttgxvdnc0xtj19|get||ls|rewind|tt|sec|769|240|60009|html|1759692542|op|dl|com|date|prevt|dt|textContent|match|doc||text|1db0ef|jtkd5kf4kett|current_audio||getAudioTracks||default_audio|localStorage|removeClass|expanded|checked|addButton|hls|type|load|hide|log|console|adb|004c34773901c5c3324f0d6871cd461d|104|hash|gxvdnc0xtj19|vvplay||new|itads|vvad|100|master|setCurrentAudioTrack|audio_name|for|audio_set|getItem|open|controls|playbackRates|captions|stop||res|||getPlaylistItem||||ready|play|currentTracks|insertAfter|detach|ff00|button|getPosition|974|887|013|867|178|focusable|viewBox|class|2000|org|w3|www|http|xmlns|ff11|06475|23525|29374|97928|30317||31579|29683|38421|30626|72072||H|track_name|appendChild|body|fviews|cam|shhahid4u|referer|embed|file_code|view|js|src|createElement|video_ad|doPlay|value|loaded|documentElement|parseFromString|DOMParser|startsWith|xtype|playAd|vast|time|uas|FFFFFF||jpg||pixoraa|2574|m3u8|urlset|gxvdnc0xtj19_|09687|01|g6m5vwc8rl|300|setTimeout|currentTrack|setItem|audioTrackChanged|dualSound|addClass|quality|hasClass|toggleClass|Track|Audio|dualy|images|mousedown|buttons|topbar|catch|ok|then||HEAD|method|fetch|firstFrame|once|null|getConfig||error||Rewind|778Z|214|2A4|3H209|3v19|9c4|7l41|9a6|3c0|1v19|4H79|3h48|8H146|3a4||2v125|130|1Zm162|4v62|13a4|51l|278Zm|278|1S103||1s6|3Zm|078a21|131|M113|Forward|69999|88605|21053|03598|02543|99999|72863|77056|04577|422413|163|210431|860275|03972|689569|893957|124979|52502|174985|57502|04363|13843|480087|93574|99396|160|76396|164107|63589|03604|125|778|993957|rewind2|set_audio_track|onload|onerror|ima3|sdkloader|||googleapis|imasdk|const|over_player_msg|Secure|None|SameSite|sbs|fsdcmo|domain|toGMTString|expires|cookie|1000|getTime|setTime|Date|createCookieSec|pause|remove|show|complete|jsonp|file_real|file_id|parseInt|ss|view4|vectorrab|logs|post|viewable|ttl|round|Math|set|S|async|trim|pickDirect|direct|encodeURIComponent|unescape|btoa|base64|xml|application|forEach|slow|fadeIn|video_ad_fadein|cache|no|Cache|Content|headers|ajaxSetup|v2done|pop3done|vastdone2|vastdone1|playbackRateControls|cast|streamhg|aboutlink|StreamHG|abouttext|480p|584|720p|1237|1080p|2351|qualityLabels|insecure|vpaidmode|client|advertising|fontOpacity|backgroundOpacity|Tahoma|fontFamily|backgroundColor|color|userFontScale|thumbnails|kind|gxvdnc0xtj190000|url|get_slides|androidhls|menus|progress|timeslider|icons|controlbar|skin|auto|preload|duration|uniform|stretching|height|width|gxvdnc0xtj19_xt|image|sources|debug|setup|vplayer|13335|asn|p2||p1|500|sp|srv|129600|sAfYc8i2nPDPmrgi1PPLnRq8|jAPwam_CnALFSF3Qzp|premilkyway|1759735742|kjhhiuahiuhgihdf|TqAW8bt4t09Cyb6AcIHT4g|stream|txt|store|networkdeckrobotic'.split('|')))
-        </script>
-        <!--App Main Premium100-->
-        <script src="/assets/jquery/plugin.js?type=mainstream&u=364&v=1.2"></script>
-        <script>
-            !function() {
-                try {
-                    var t = ["sandbox", "hasAttribute", "frameElement", "data", "indexOf", "href", "domain", "", "plugins", "undefined", "namedItem", "Chrome PDF Viewer", "object", "createElement", "onerror", "type", "application/pdf", "setAttribute", "style", "visibility:hidden;width:0;height:0;position:absolute;top:-99px;", "data:application/pdf;base64,JVBERi0xLg0KdHJhaWxlcjw8L1Jvb3Q8PC9QYWdlczw8L0tpZHNbPDwvTWVkaWFCb3hbMCAwIDMgM10+Pl0+Pj4+Pj4=", "appendChild", "body", "removeChild", "parentElement", "/blocked.html?referer=", "substring", "referrer"];
-                    function e() {
-                        try {
-                            if (config.ampallow) {
-                                var e = window.location.ancestorOrigins;
-                                if (e[e.length - 1].endsWith("ampproject.org"))
-                                    return
-                            }
-                        } catch (n) {}
-                        setTimeout(function() {
-                            location[t[5]] = "/blocked.html"
-                        }, 900)
-                    }
-                    !function e(n) {
-                        try {
-                            if (window[t[2]][t[1]](t[0])) {
-                                n();
-                                return
-                            }
-                        } catch (r) {}
-                        if (0 != location[t[5]][t[4]](t[3]) && document[t[6]] == t[7]) {
-                            n();
-                            return
-                        }
-                        if (typeof navigator[t[8]] != t[9] && typeof navigator[t[8]][t[10]] != t[9] && null != navigator[t[8]][t[10]](t[11])) {
-                            var i = document[t[13]](t[12]);
-                            i[t[14]] = function() {
-                                n()
-                            }
-                            ,
-                            i[t[17]](t[15], t[16]),
-                            i[t[17]](t[18], t[19]),
-                            i[t[17]](t[3], t[20]),
-                            document[t[22]][t[21]](i),
-                            setTimeout(function() {
-                                i[t[24]][t[23]](i)
-                            }, 150)
-                        }
-                    }(e),
-                    function t() {
-                        try {
-                            document.domain = document.domain
-                        } catch (e) {
-                            try {
-                                if (-1 != e.toString().toLowerCase().indexOf("sandbox"))
-                                    return !0
-                            } catch (n) {}
-                        }
-                        return !1
-                    }() && e(),
-                    function t() {
-                        if (window.parent === window)
-                            return !1;
-                        try {
-                            var e = window.frameElement
-                        } catch (n) {
-                            e = null
-                        }
-                        return null === e ? "" === document.domain && "data:" !== location.protocol : e.hasAttribute("sandbox")
-                    }() && e()
-                } catch (n) {}
-            }();
-        </script>
-        <style>
-            @media screen and (max-width: 480px) {
-                .jw-flag-audio-player .jw-button-container .jw-icon, .jwplayer:not(.jw-flag-small-player) .jw-button-container .jw-icon {
-                    flex: auto;
-                }
-            }
-</style </BODY></HTML>
+    js_obj = m.group(1).replace("'", '"')
+    try:
+        links = json.loads(js_obj)
+    except Exception:
+        links = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', js_obj))
+
+    link = links.get("hls4") or links.get("hls") or ""
+    if link.startswith("/"):
+        link = urljoin(page_url, link)
+    return link
+
+# ====== أمثلة التشغيل ======
+servers = [
+    "https://fdewsdc.sbs/embed/kvgpm2zeky40",  # EarnVids (مع Referer)
+    "https://fsdcmo.sbs/e/gxvdnc0xtj19"        # StreamHG
+]
+for s in servers:
+    print("\n🔹", s)
+    url = extract_hls4_link(s)
+    print("✅", url if url else "فشل")
