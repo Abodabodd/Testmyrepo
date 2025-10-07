@@ -1,79 +1,29 @@
-import re, requests, json
-from urllib.parse import urljoin
+import requests
+import re
+import base64
 
-HEADERS_BASE = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
-    ),
+url = "https://yonaplay.net/embed.php?id=20213&apiKey=1c0f3441-e3c2-4023-9e8b-bee77ff59adf"
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.90 Safari/537.36",
+    "Referer": "https://witanime.red/"
 }
-TIMEOUT = 12
 
-def unpack_packer_simple(js):
-    """يفك eval-packer من نوع eval(function(p,a,c,k,e,d)...)"""
-    m = re.search(
-        r"eval\(function\(p,a,c,k,e,d\)\{.*?\}\(\s*['\"](.*?)['\"]\s*,\s*(\d+)\s*,\s*\d+\s*,\s*['\"](.*?)['\"]",
-        js, re.S)
-    if not m:
-        return None
-    payload, radix, sympipe = m.groups()
-    radix = int(radix)
-    symtab = sympipe.split("|")
-    token_re = re.compile(r"\b[0-9a-zA-Z]+\b")
-    def repl(mo):
-        tok = mo.group(0)
-        try:
-            idx = int(tok, radix)
-            return symtab[idx] if 0 <= idx < len(symtab) else tok
-        except:
-            return tok
-    return token_re.sub(repl, payload)
+response = requests.get(url, headers=headers)
+html_content = response.text
 
-def extract_hls4_link(page_url):
-    # إعداد الـ Headers مع Referer خاص لـ EarnVids
-    headers = HEADERS_BASE.copy()
-    if "fdewsdc.sbs" in page_url:
-        headers["Referer"] = "https://shhahid4u.cam"
-        print("🌐 تم تعيين Referer: https://shhahid4u.cam")
+matches = re.findall(r"go_to_player\('([A-Za-z0-9+/=]+)'\)", html_content)
 
-    # جلب الصفحة
-    r = requests.get(page_url, headers=headers, timeout=TIMEOUT)
-    if r.status_code != 200:
-        print("❌ HTTP", r.status_code)
-        return None
+print("Found video links:\n")
 
-    if "eval(function" not in r.text:
-        print("❌ لا يوجد eval في الصفحة.")
-        return None
-
-    unpacked = unpack_packer_simple(r.text)
-    if not unpacked:
-        print("❌ فشل فكّ packer.")
-        return None
-
-    # نبحث عن var links = {...}
-    m = re.search(r"var\s+links\s*=\s*(\{.*?\});", unpacked, re.S)
-    if not m:
-        print("❌ لم يُعثر على كائن links.")
-        return None
-
-    js_obj = m.group(1).replace("'", '"')
+for m in matches:
+    # تصحيح padding Base64
+    padding = len(m) % 4
+    if padding != 0:
+        m += "=" * (4 - padding)
+    
     try:
-        links = json.loads(js_obj)
-    except Exception:
-        links = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', js_obj))
-
-    link = links.get("hls4") or links.get("hls") or ""
-    if link.startswith("/"):
-        link = urljoin(page_url, link)
-    return link
-
-# ====== أمثلة التشغيل ======
-servers = [
-    "https://fdewsdc.sbs/embed/kvgpm2zeky40",  # EarnVids (مع Referer)
-    "https://fsdcmo.sbs/e/gxvdnc0xtj19"        # StreamHG
-]
-for s in servers:
-    print("\n🔹", s)
-    url = extract_hls4_link(s)
-    print("✅", url if url else "فشل")
+        decoded = base64.b64decode(m).decode('utf-8')
+        print(decoded)
+    except Exception as e:
+        print(f"Failed to decode: {m} ({e})")
