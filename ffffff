@@ -1,29 +1,15 @@
-import requests
-import re
-import base64
-
-url = "https://yonaplay.net/embed.php?id=20213&apiKey=1c0f3441-e3c2-4023-9e8b-bee77ff59adf"
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.90 Safari/537.36",
-    "Referer": "https://witanime.red/"
-}
-
-response = requests.get(url, headers=headers)
-html_content = response.text
-
-matches = re.findall(r"go_to_player\('([A-Za-z0-9+/=]+)'\)", html_content)
-
-print("Found video links:\n")
-
-for m in matches:
-    # تصحيح padding Base64
-    padding = len(m) % 4
-    if padding != 0:
-        m += "=" * (4 - padding)
-    
-    try:
-        decoded = base64.b64decode(m).decode('utf-8')
-        print(decoded)
-    except Exception as e:
-        print(f"Failed to decode: {m} ({e})")
+GET /hls2/01/00088/wcowyaeeived_,l,n,.urlset/master.m3u8?t=j08nEAOn352_9l511VdoMG0qAYiDiwwa6aO74XW4y-o&s=1760020411&e=43200&v=134825&i=0.3&sp=0 HTTP/1.1
+Accept: */*
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: en-GB,en;q=0.9
+Connection: keep-alive
+Host: vroba-cdn2-azf.cdnz.quest
+Origin: https://vidroba.com:2096
+Referer: https://vidroba.com:2096/
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: cross-site
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36
+sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Windows"
