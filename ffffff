@@ -1,292 +1,158 @@
-#!/usr/bin/env python3
 import requests
-from bs4 import BeautifulSoup
 import re
-from urllib.parse import urlparse
+import base64
+import random
+import string
+from urllib.parse import urlparse, parse_qs
+from bs4 import BeautifulSoup
 
-# --- الإعدادات ---
-ORIGINAL_URL = "https://3esk.onl/watch/episodes/serie-gozleri-karadeniz-mudblij-1oct5-eason-1-episode-1/"
-REFERER_MAIN = "https://3esk.onl/watch/tvshows/serie-gozleri-karadeniz-mudblij-1oct5/"
-session = requests.Session() # الجلسة الرئيسية للخطوات الأولى
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9,ar;q=0.8", "DNT": "1", "Upgrade-Insecure-Requests": "1",
-    "Referer": REFERER_MAIN
-}
-FIXED_HEADERS_BASE = {
-    "Accept": "*/*", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "en-GB,en;q=0.9",
-    "Connection": "keep-alive", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Site": "cross-site",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-    "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"'
-}
-STRICT_SERVER3_HEADERS = {
-    "Accept": "*/*", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "en-GB,en;q=0.9",
-    "Connection": "keep-alive", "Host": "vroba-cdn2-azf.cdnz.quest", "Origin": "https://vidroba.com:2096",
-    "Referer": "https://vidroba.com:2096/", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "cross-site",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-    "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"'
-}
+# استيراد مكتبة فك التشفير RC4
+try:
+    from Crypto.Cipher import ARC4
+except ImportError:
+    print("مكتبة pycryptodome غير مثبتة. يرجى تشغيل: pip install pycryptodome")
+    exit()
 
-def build_fixed_headers_for_url(url):
-    h = FIXED_HEADERS_BASE.copy()
-    host = urlparse(url).netloc
-    if host: h["Host"] = host
-    return h
+# --- الثوابت المأخوذة من الكود الأصلي ---
+NONCE_REGEX = re.compile(r'_xt\s*=\s*"([^"]+)"')
+REQUEST_URL = "https://videa.hu/player/xml?platform=desktop"
+STUPID_KEY = "xHb0ZvME5q8CBcoQi6AngerDu3FGO9fkUlwPmLVY_RTzj2hJIS4NasXWKy1td7p"
 
-# --- دوال مساعدة لفك Packer (لم تتغير) ---
-def js_string_unescape(s):
-    def repl(match):
-        esc = match.group(0)
-        if esc.startswith("\\x"):
-            try: return chr(int(esc[2:], 16))
-            except: return esc
-        if esc.startswith("\\u"):
-            try: return chr(int(esc[2:], 16))
-            except: return esc
-        mapping = {"\\n":"\n","\\r":"\r","\\t":"\t","\\'":"'","\\\"":'"',"\\\\":"\\"}
-        return mapping.get(esc, esc[1:])
-    return re.sub(r'\\u[0-9a-fA-F]{4}|\\x[0-9a-fA-F]{2}|\\.|\\n|\\r|\\t', repl, s)
+def get_random_string(length=8):
+    """ينشئ سلسلة عشوائية من 8 أحرف وأرقام."""
+    allowed_chars = string.ascii_lowercase + string.digits
+    return ''.join(random.choices(allowed_chars, k=length))
 
-def int_to_base36(n):
-    chars = "0123456789abcdefghijklmnopqrstuvwxyz"
-    if n == 0: return '0'
-    res = []
-    while n:
-        res.append(chars[n % 36])
-        n //= 36
-    return ''.join(reversed(res))
+def decrypt_xml(encrypted_data: bytes, key: str) -> str:
+    """يفك تشفير بيانات XML باستخدام RC4."""
+    cipher = ARC4.new(key.encode('utf-8'))
+    decrypted_bytes = cipher.decrypt(encrypted_data)
+    return decrypted_bytes.decode('utf-8')
 
-def parse_js_string_at(text, idx):
-    if idx >= len(text): return None, idx
-    quote = text[idx]
-    if quote not in ('"', "'"): return None, idx
-    i = idx + 1; out = []
-    while i < len(text):
-        ch = text[i]
-        if ch == "\\":
-            if i+1 < len(text): out.append(text[i:i+2]); i += 2
-            else: i += 1
-        elif ch == quote: val = "".join(out); return js_string_unescape(val), i+1
-        else: out.append(ch); i += 1
-    return None, i
-
-def find_matching_brace(text, start_idx):
-    if start_idx < 0 or start_idx >= len(text) or text[start_idx] != "{": return -1
-    depth = 0; i = start_idx
-    while i < len(text):
-        ch = text[i]
-        if ch == "{": depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0: return i
-        i += 1
-    return -1
-
-def unpack_packer_from_eval(eval_text):
-    try:
-        start_fn = eval_text.find("function(p,a,c,k,e,d)")
-        if start_fn == -1: return None, "no function signature"
-        brace_open = eval_text.find("{", start_fn)
-        if brace_open == -1: return None, "no opening brace"
-        brace_close = find_matching_brace(eval_text, brace_open)
-        if brace_close == -1: return None, "no matching brace found for function body"
-        args_start = eval_text.find("(", brace_close)
-        if args_start == -1: return None, "no args start found"
-        i = args_start + 1
-        while i < len(eval_text) and eval_text[i].isspace(): i += 1
-        p_val, i = parse_js_string_at(eval_text, i)
-        if p_val is None: return None, "cannot parse p string"
-        while i < len(eval_text) and (eval_text[i].isspace() or eval_text[i] == ','): i += 1
-        m = re.match(r'(\d+)', eval_text[i:])
-        if not m: return None, "cannot parse a"
-        a_val = int(m.group(1)); i += m.end()
-        while i < len(eval_text) and (eval_text[i].isspace() or eval_text[i] == ','): i += 1
-        m = re.match(r'(\d+)', eval_text[i:])
-        if not m: return None, "cannot parse c"
-        c_val = int(m.group(1)); i += m.end()
-        while i < len(eval_text) and (eval_text[i].isspace() or eval_text[i] == ','): i += 1
-        k_list = []
-        if i < len(eval_text) and eval_text[i] in ("'", '"'):
-            k_str, i = parse_js_string_at(eval_text, i)
-            if ".split" in eval_text[i:i+20]: k_list = k_str.split("|")
-            else: k_list = k_str.split("|") # Fallback
-        else:
-            m2 = re.search(r"(['\"])(.*?)\1\s*\.split\s*\(\s*['\"]\|['\"]\s*\)", eval_text)
-            if m2: k_list = m2.group(2).split("|")
-            else: k_list = []
-
-        p = p_val
-        for idx in range(c_val - 1, -1, -1):
-            key = int_to_base36(idx)
-            if idx < len(k_list) and k_list[idx]:
-                p = re.sub(r'\b' + re.escape(key) + r'\b', k_list[idx], p)
-        return p, None
-    except Exception as e: return None, f"exception:{e}"
-
-def analyze_and_save_eval_scripts(html_text):
-    soup = BeautifulSoup(html_text, 'html.parser')
-    scripts = soup.find_all('script')
-    found_media_links = []
-    for s in scripts:
-        content = s.string or s.get_text()
-        if not content: continue
-        if "eval(" in content:
-            m = re.search(r"eval\s*\(\s*function\s*\(\s*p\s*,\s*a\s*,\s*c\s*,\s*k\s*,\s*e\s*,\s*d\s*\)\s*\{", content)
-            if m:
-                unpacked, _ = unpack_packer_from_eval(content[m.start():m.start()+10000]) # Sample for packer
-                if unpacked:
-                    media = re.findall(r'(https?://[^\s"\']+\.(?:m3u8|mp4|webm|mov)[^\s"\']*)', unpacked, re.IGNORECASE)
-                    if media: found_media_links.extend(media)
-    return found_media_links
-
-def get_all_iframe_srcs(soup_obj):
-    return [iframe.get('src') for iframe in soup_obj.find_all('iframe') if iframe.get('src')]
-
-def process_single_embed_server(embed_url, referer_from_prev_page, session_obj, headers_base, server_label="unknown"):
-    current_headers = headers_base.copy()
-    current_headers["Referer"] = referer_from_prev_page
-    all_media_links_for_server = []
-    try:
-        r_if1 = session_obj.get(embed_url, headers=current_headers, timeout=20)
-        r_if1.raise_for_status()
-        soup_if1 = BeautifulSoup(r_if1.text, "html.parser")
-
-        all_media_links_for_server.extend(re.findall(r'(https?://[^\s"\']+\.(?:m3u8|mp4|webm|mov)[^\s"\']*)', r_if1.text, re.IGNORECASE))
-        all_media_links_for_server.extend(analyze_and_save_eval_scripts(r_if1.text))
-
-        iframe1_srcs = get_all_iframe_srcs(soup_if1)
-        if iframe1_srcs:
-            iframe2_src = iframe1_srcs[0]
-            current_headers["Referer"] = embed_url
-            r_final = session_obj.get(iframe2_src, headers=current_headers, timeout=20)
-            r_final.raise_for_status()
-            all_media_links_for_server.extend(re.findall(r'(https?://[^\s"\']+\.(?:m3u8|mp4|webm|mov)[^\s"\']*)', r_final.text, re.IGNORECASE))
-            all_media_links_for_server.extend(analyze_and_save_eval_scripts(r_final.text))
-    except requests.exceptions.RequestException: pass
-    except Exception: pass
-    return list(set(all_media_links_for_server))
-
-# --- التسلسل الرئيسي ---
-def main_flow():
-    found_all_media_links = dict()
-
-    print("STEP: جلب الصفحة الأولية...", end=" ");
-    try: r0 = session.get(ORIGINAL_URL, headers=headers, timeout=20); r0.raise_for_status(); print("SUCCESS")
-    except Exception as e: print(f"FAILED\nERROR: {e}"); return
-    soup0 = BeautifulSoup(r0.text, "html.parser")
-
-    print("STEP: البحث عن زر المشاهدة/نموذج الـ POST الأول...", end=" ");
-    watch_button = soup0.find('button', class_='single-watch-btn')
-    watch_form = watch_button.find_parent('form') if watch_button else None
-    if not watch_form:
-        for f in soup0.find_all('form'):
-            act = f.get('action') or "";
-            if '3isk' in act or 'aa.3isk' in act or 'watch' in act: watch_form = f; break
-    if not watch_form: print("FAILED\nERROR: لم يُعثر على form."); return
-    else:
-        first_post_url = watch_form.get('action')
-        first_form_data = {i.get('name'): i.get('value') for i in watch_form.find_all('input', type='hidden') if i.get('name')}
-        if watch_button and watch_button.get('name'): first_form_data[watch_button.get('name')] = watch_button.get('value')
-        print(f"SUCCESS\nSTEP: POST الأول -> {first_post_url}")
-
-    print("STEP: تنفيذ POST الأول...", end=" ");
-    headers["Referer"] = ORIGINAL_URL
-    try: r1 = session.post(first_post_url, data=first_form_data, headers=headers, timeout=20); r1.raise_for_status(); print("SUCCESS")
-    except Exception as e: print(f"FAILED\nERROR: {e}"); return
-
-    print("STEP: استخراج بيانات next POST...", end=" ");
-    try:
-        m_myurl = re.search(r'var myUrl\s*=\s*["\']([^"\']+)["\']', r1.text)
-        m_news = re.search(r'myInput\.value\s*=\s*["\']([^"\']+)["\']', r1.text)
-        if not m_myurl or not m_news: print("FAILED\nERROR: لم أتمكن من استخراج myUrl/news."); return
-        next_post = m_myurl.group(1); news_val = m_news.group(1); print("SUCCESS")
-    except Exception as e: print(f"FAILED\nERROR: {e}"); return
-
-    print("STEP: تنفيذ POST الثاني...", end=" ");
-    try: r2 = session.post(next_post, data={'news': news_val, 'u': '', 'submit': 'submit'}, headers={"Referer": r1.url, **headers}, timeout=20); r2.raise_for_status(); print("SUCCESS")
-    except Exception as e: print(f"FAILED\nERROR: {e}"); return
-
-    soup2 = BeautifulSoup(r2.text, "html.parser")
-    iframe_srcs_on_r2 = get_all_iframe_srcs(soup2)
-    print(f"STEP: الصفحة النهائية بعد POST الثاني — iframes: {len(iframe_srcs_on_r2)}", end=" ")
-    if not iframe_srcs_on_r2: print("FAILED\nERROR: لا iframe. لا يمكن توليد روابط السيرفرات."); return
-    else: print("SUCCESS")
-
-    base_iframe_src = iframe_srcs_on_r2[0]
-    m = re.match(r"(https://3esk\.onl/embed/)(\d+)/(.*)", base_iframe_src)
-    if m:
-        base_url_prefix = m.group(1); trailing_part = m.group(3)
-        print("STEP: بدأ معالجة سيرفرات الـ embed (1-5)...")
-        max_servers_to_check = 5
-        for server_num in range(1, max_servers_to_check + 1):
-            current_embed_url = f"{base_url_prefix}{server_num}/{trailing_part}"
-            print(f"  > سيرفر {server_num} ({current_embed_url})...", end=" ")
-            media_links = process_single_embed_server(current_embed_url, r2.url, session, headers, server_label=server_num)
-            if media_links:
-                print(f"✅ {len(media_links)} link(s)")
-                for link in media_links: found_all_media_links.setdefault(link, set()).add(str(server_num))
-            else: print("❌ لا روابط")
-    else:
-        print("STEP: الـ iframe الأساسي لا يطابق نمط embed. معالجته مباشرة...", end=" ")
-        media_links = process_single_embed_server(base_iframe_src, r2.url, session, headers, server_label="أساسي")
-        if media_links:
-            print(f"✅ {len(media_links)} link(s)")
-            for link in media_links: found_all_media_links.setdefault(link, set()).add("base")
-        else: print("❌ لا روابط")
-
-    if found_all_media_links:
-        print("\n--- روابط الميديا النهائية التي تم جمعها ---")
-        for link, servers in sorted(found_all_media_links.items()): print(f"{link} (servers: {','.join(sorted(servers))})")
-    else: print("\nلا روابط ميديا نهائية تم العثور عليها.\n=== انتهى التشغيل ==="); return
-
-    # --- الجزء المدمج الجديد: فحص خاص بالسيرفر 3 ---
-    print("\nSTEP: فحص خاص بالروابط المستخرجة من السيرفر 3...")
+def videos_from_url(url: str) -> list:
+    """الدالة الرئيسية لاستخراج روابط الفيديو من رابط Videa."""
     
-    # نبحث عن رابط من السيرفر "3" أو رابط نطاقه يطابق "vroba-cdn2-azf.cdnz.quest"
-    specific_server3_link_to_check = None
-    for link, servers in sorted(found_all_media_links.items()):
-        if "3" in servers or "vroba-cdn2-azf.cdnz.quest" in urlparse(link).netloc:
-            specific_server3_link_to_check = link
-            break # نأخذ أول رابط مطابق فقط لإجراء الفحص الخاص
-
-    if specific_server3_link_to_check:
-        print(f"\nبدء فحص الرابط باستخدام Headers السيرفر 3 الصارمة:")
-        print(f"  {specific_server3_link_to_check}\n")
-
-        # إنشاء جلسة جديدة ونظيفة لهذا الفحص المحدد
-        # هذا هو التغيير الحاسم الذي يجعله يعمل بشكل مستقل عن الجلسة الرئيسية
-        isolated_session = requests.Session() 
-        hdrs = STRICT_SERVER3_HEADERS.copy()
+    # تمت إضافة try...except هنا
+    try:
+        print(f"[*] جاري جلب الصفحة من: {url}")
+        # 1. جلب الصفحة الأولية واستخراج المفتاح المشفر (_xt)
+        response = requests.get(url, timeout=10) # إضافة timeout
+        response.raise_for_status()
+        body = response.text
         
-        # تحديث الـ 'Host' في الهيدرات ليتناسب مع الرابط الذي يتم فحصه
-        parsed_url = urlparse(specific_server3_link_to_check)
-        hdrs["Host"] = parsed_url.netloc
+        match = NONCE_REGEX.search(body)
+        if not match:
+            print("[!] لم يتم العثور على المفتاح المشفر (_xt) في الصفحة.")
+            return []
         
-        try:
-            with isolated_session.get(specific_server3_link_to_check, headers=hdrs, timeout=15, stream=True, allow_redirects=True) as rch:
-                print(f"  -> حالة الاستجابة (Status Code): {rch.status_code}")
-                
-                chunk = rch.content[:4096] if rch.content else b""
-                
-                if b"#EXTM3U" in chunk:
-                    print("  ✅ EXTM3U: تم العثور على #EXTM3U في بداية المحتوى. يبدو رابط M3U8 صالحاً.")
-                else:
-                    print("  ⚠️ EXTM3U: لم يتم العثور على #EXTM3U في أول 4KB من المحتوى.")
-                    print(f"  (محتوى الاستجابة الأولي: {chunk.decode('utf-8', errors='ignore')[:500]}...)")
-        except requests.exceptions.RequestException as e:
-            print(f"  ❌ خطأ في الاتصال أو الشبكة: {e}")
-        except Exception as e:
-            print(f"  ❌ خطأ غير متوقع: {e}")
-        print("\n" + "=" * 50 + "\n")
-    else:
-        print("  لا يوجد رابط من السيرفر 3 (أو من نطاقه) تم العثور عليه لإجراء فحص خاص.")
+        nonce = match.group(1)
+        print("[*] تم استخراج المفتاح المشفر بنجاح.")
 
-    print("انتهى الفحص الكلي.")
-# --- نهاية main_flow ---
+        # 2. تطبيق خوارزمية فك التشفير لتوليد المعاملات
+        param_l = nonce[:32]
+        param_s_part = nonce[32:]
+        
+        result_parts = []
+        for i in range(32):
+            index = i - (STUPID_KEY.find(param_l[i]) - 31)
+            result_parts.append(param_s_part[index])
+        
+        result = "".join(result_parts)
+        
+        # 3. توليد المعاملات ومفتاح RC4
+        seed = get_random_string(8) # هذا هو _s
+        param_t = result[:16]       # هذا هو _t
+        rc4_key_part = result[16:]
+        
+        print(f"[*] تم توليد المعاملات: _s={seed}")
 
+        # 4. بناء الرابط الثاني وطلب بيانات XML
+        parsed_url = urlparse(url)
+        video_id = parse_qs(parsed_url.query).get('v', [None])[0]
+        if not video_id:
+            print("[!] لم يتم العثور على معرّف الفيديو (v) في الرابط.")
+            return []
+
+        request_params = {
+            '_s': seed,
+            '_t': param_t,
+            'v': video_id
+        }
+
+        headers = {
+            'Referer': url,
+            'Origin': 'https://videa.hu'
+        }
+
+        print(f"[*] جاري طلب بيانات الفيديو من الخادم...")
+        xml_response = requests.get(REQUEST_URL, params=request_params, headers=headers, timeout=10) # إضافة timeout
+        xml_response.raise_for_status()
+        
+        # 5. التحقق من الرد وفك تشفيره إذا لزم الأمر
+        if xml_response.text.strip().startswith("<?xml"):
+            soup = BeautifulSoup(xml_response.text, 'lxml-xml')
+            error_tag = soup.find('error')
+            if error_tag:
+                print(f"[!] الخادم رد بخطأ: {error_tag.text}")
+            return []
+        else:
+            print("[*] تم استلام الرد المشفر، جاري فك التشفير...")
+            final_rc4_key = rc4_key_part + seed + xml_response.headers.get('x-videa-xs', '')
+            
+            b64_decoded = base64.b64decode(xml_response.text)
+            decrypted_xml_string = decrypt_xml(b64_decoded, final_rc4_key)
+            soup = BeautifulSoup(decrypted_xml_string, 'lxml-xml')
+
+        # 6. استخراج روابط البث النهائية من XML
+        video_list = []
+        video_sources = soup.find_all("video_source")
+        
+        if not video_sources:
+            print("[!] لم يتم العثور على أي مصادر فيديو في الرد النهائي.")
+            return []
+
+        for source in video_sources:
+            name = source.get('name')
+            quality = f"Videa - {name}"
+            
+            hash_tag = soup.find(f"hash_value_{name}")
+            if not hash_tag:
+                continue
+            
+            video_url_part = source.text
+            exp = source.get('exp')
+            final_url = f"https:{video_url_part}?md5={hash_tag.text}&expires={exp}"
+            
+            video_list.append({
+                'quality': quality,
+                'url': final_url,
+                'headers': headers
+            })
+            
+        return video_list
+
+    # --- [ هذا هو الجزء المفقود الذي تم إصلاحه ] ---
+    except Exception as e:
+        print(f"[!!!] حدث خطأ غير متوقع: {e}")
+        return [] # إرجاع قائمة فارغة عند حدوث أي خطأ
+
+
+# --- جزء التشغيل الرئيسي ---
 if __name__ == "__main__":
-    main_flow()
+    test_url = "https://videa.hu/player?v=grlbY3myVKjRb6qZ"
+    
+    videos = videos_from_url(test_url)
+    
+    print("\n--- روابط البث المستخرجة ---")
+    if videos:
+        # ترتيب الروابط حسب الجودة (اختياري)
+        try:
+            sorted_videos = sorted(videos, key=lambda v: int(re.sub(r'\D', '', v['quality'])))
+        except (ValueError, TypeError):
+            sorted_videos = videos
+
+        for video in sorted_videos:
+            print(f"الجودة: {video['quality']}")
+            print(f"الرابط: {video['url']}\n")
+    else:
+        print("فشل استخراج الروابط.")
