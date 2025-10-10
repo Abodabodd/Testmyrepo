@@ -1,158 +1,200 @@
 import requests
-import re
-import base64
-import random
-import string
-from urllib.parse import urlparse, parse_qs
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse, parse_qs, urljoin
+import json
+import base64
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
-# استيراد مكتبة فك التشفير RC4
-try:
-    from Crypto.Cipher import ARC4
-except ImportError:
-    print("مكتبة pycryptodome غير مثبتة. يرجى تشغيل: pip install pycryptodome")
-    exit()
-
-# --- الثوابت المأخوذة من الكود الأصلي ---
-NONCE_REGEX = re.compile(r'_xt\s*=\s*"([^"]+)"')
-REQUEST_URL = "https://videa.hu/player/xml?platform=desktop"
-STUPID_KEY = "xHb0ZvME5q8CBcoQi6AngerDu3FGO9fkUlwPmLVY_RTzj2hJIS4NasXWKy1td7p"
-
-def get_random_string(length=8):
-    """ينشئ سلسلة عشوائية من 8 أحرف وأرقام."""
-    allowed_chars = string.ascii_lowercase + string.digits
-    return ''.join(random.choices(allowed_chars, k=length))
-
-def decrypt_xml(encrypted_data: bytes, key: str) -> str:
-    """يفك تشفير بيانات XML باستخدام RC4."""
-    cipher = ARC4.new(key.encode('utf-8'))
-    decrypted_bytes = cipher.decrypt(encrypted_data)
-    return decrypted_bytes.decode('utf-8')
-
-def videos_from_url(url: str) -> list:
-    """الدالة الرئيسية لاستخراج روابط الفيديو من رابط Videa."""
-    
-    # تمت إضافة try...except هنا
+def _fetch_url(url, method='GET', headers=None, data=None, allow_redirects=True, timeout=25):
+    """دالة مساعدة لجلب محتوى URL دون هيدرز (headers=None افتراضي)."""
     try:
-        print(f"[*] جاري جلب الصفحة من: {url}")
-        # 1. جلب الصفحة الأولية واستخراج المفتاح المشفر (_xt)
-        response = requests.get(url, timeout=10) # إضافة timeout
+        response = requests.request(method, url, headers=headers, data=data, allow_redirects=allow_redirects, timeout=timeout)
         response.raise_for_status()
-        body = response.text
-        
-        match = NONCE_REGEX.search(body)
-        if not match:
-            print("[!] لم يتم العثور على المفتاح المشفر (_xt) في الصفحة.")
-            return []
-        
-        nonce = match.group(1)
-        print("[*] تم استخراج المفتاح المشفر بنجاح.")
+        return response
+    except requests.exceptions.RequestException as e:
+        # طباعة خطأ بسيطة إلى stderr (يمكن التعطيل)
+        print(f"خطأ في الطلب لـ {url}: {e}", file=sys.stderr)
+        return None
 
-        # 2. تطبيق خوارزمية فك التشفير لتوليد المعاملات
-        param_l = nonce[:32]
-        param_s_part = nonce[32:]
-        
-        result_parts = []
-        for i in range(32):
-            index = i - (STUPID_KEY.find(param_l[i]) - 31)
-            result_parts.append(param_s_part[index])
-        
-        result = "".join(result_parts)
-        
-        # 3. توليد المعاملات ومفتاح RC4
-        seed = get_random_string(8) # هذا هو _s
-        param_t = result[:16]       # هذا هو _t
-        rc4_key_part = result[16:]
-        
-        print(f"[*] تم توليد المعاملات: _s={seed}")
+def _make_absolute_https(url_str):
+    """تحول الرابط إلى رابط مطلق بـ HTTPS إذا لزم."""
+    if not url_str:
+        return None
+    if url_str.startswith('//'):
+        return 'https:' + url_str
+    if url_str.startswith('http://'):
+        return url_str.replace('http://', 'https://')
+    return url_str
 
-        # 4. بناء الرابط الثاني وطلب بيانات XML
-        parsed_url = urlparse(url)
-        video_id = parse_qs(parsed_url.query).get('v', [None])[0]
-        if not video_id:
-            print("[!] لم يتم العثور على معرّف الفيديو (v) في الرابط.")
-            return []
+def get_page_html(url):
+    """يجلب محتوى HTML لصفحة معينة بدون هيدرز."""
+    response = _fetch_url(url)  # لا نمرر هيدرز
+    return response.text if response else None
 
-        request_params = {
-            '_s': seed,
-            '_t': param_t,
-            'v': video_id
-        }
-
-        headers = {
-            'Referer': url,
-            'Origin': 'https://videa.hu'
-        }
-
-        print(f"[*] جاري طلب بيانات الفيديو من الخادم...")
-        xml_response = requests.get(REQUEST_URL, params=request_params, headers=headers, timeout=10) # إضافة timeout
-        xml_response.raise_for_status()
-        
-        # 5. التحقق من الرد وفك تشفيره إذا لزم الأمر
-        if xml_response.text.strip().startswith("<?xml"):
-            soup = BeautifulSoup(xml_response.text, 'lxml-xml')
-            error_tag = soup.find('error')
-            if error_tag:
-                print(f"[!] الخادم رد بخطأ: {error_tag.text}")
-            return []
-        else:
-            print("[*] تم استلام الرد المشفر، جاري فك التشفير...")
-            final_rc4_key = rc4_key_part + seed + xml_response.headers.get('x-videa-xs', '')
-            
-            b64_decoded = base64.b64decode(xml_response.text)
-            decrypted_xml_string = decrypt_xml(b64_decoded, final_rc4_key)
-            soup = BeautifulSoup(decrypted_xml_string, 'lxml-xml')
-
-        # 6. استخراج روابط البث النهائية من XML
-        video_list = []
-        video_sources = soup.find_all("video_source")
-        
-        if not video_sources:
-            print("[!] لم يتم العثور على أي مصادر فيديو في الرد النهائي.")
-            return []
-
-        for source in video_sources:
-            name = source.get('name')
-            quality = f"Videa - {name}"
-            
-            hash_tag = soup.find(f"hash_value_{name}")
-            if not hash_tag:
-                continue
-            
-            video_url_part = source.text
-            exp = source.get('exp')
-            final_url = f"https:{video_url_part}?md5={hash_tag.text}&expires={exp}"
-            
-            video_list.append({
-                'quality': quality,
-                'url': final_url,
-                'headers': headers
-            })
-            
-        return video_list
-
-    # --- [ هذا هو الجزء المفقود الذي تم إصلاحه ] ---
-    except Exception as e:
-        print(f"[!!!] حدث خطأ غير متوقع: {e}")
-        return [] # إرجاع قائمة فارغة عند حدوث أي خطأ
-
-
-# --- جزء التشغيل الرئيسي ---
-if __name__ == "__main__":
-    test_url = "https://videa.hu/player?v=grlbY3myVKjRb6qZ"
-    
-    videos = videos_from_url(test_url)
-    
-    print("\n--- روابط البث المستخرجة ---")
-    if videos:
-        # ترتيب الروابط حسب الجودة (اختياري)
+def get_embed_url_task(args):
+    """
+    مهمة لجلب رابط التضمين من ajax endpoint.
+    args = (post_id, server_type, server_nume, episode_url)
+    """
+    post_id, server_type, server_nume, episode_url = args
+    ajax_url = "https://get.animerco.org/wp-admin/admin-ajax.php"
+    payload = {'action': 'player_ajax', 'post': post_id, 'type': server_type, 'nume': server_nume}
+    # طلب POST بدون هيدرز مخصصة
+    response = _fetch_url(ajax_url, method='POST', data=payload, timeout=15)
+    if response:
         try:
-            sorted_videos = sorted(videos, key=lambda v: int(re.sub(r'\D', '', v['quality'])))
-        except (ValueError, TypeError):
-            sorted_videos = videos
+            # بعض السيرفرات يرجعون JSON يحتوي على embed_url
+            data = response.json()
+            embed_content = data.get('embed_url') if isinstance(data, dict) else None
+            if embed_content:
+                if embed_content.strip().startswith('<iframe'):
+                    iframe_soup = BeautifulSoup(embed_content, 'html.parser')
+                    iframe_tag = iframe_soup.find('iframe')
+                    if iframe_tag and 'src' in iframe_tag.attrs:
+                        return _make_absolute_https(iframe_tag['src'])
+                return _make_absolute_https(embed_content)
+        except json.JSONDecodeError:
+            # ليس JSON، ممكن أن يكون HTML أو نص آخر
+            text = response.text
+            # حاول استخراج iframe من النص إن وجد
+            if '<iframe' in text:
+                iframe_soup = BeautifulSoup(text, 'html.parser')
+                iframe_tag = iframe_soup.find('iframe')
+                if iframe_tag and 'src' in iframe_tag.attrs:
+                    return _make_absolute_https(iframe_tag['src'])
+    return None
 
-        for video in sorted_videos:
-            print(f"الجودة: {video['quality']}")
-            print(f"الرابط: {video['url']}\n")
+def get_final_download_url_task(args):
+    """
+    مهمة لاستخراج الرابط النهائي للتحميل من صفحة وسيطة.
+    args = (animerco_intermediate_url, original_episode_url)
+    """
+    animerco_intermediate_url, original_episode_url = args
+    # طلب بدون هيدرز (بدون Referer)
+    response = _fetch_url(animerco_intermediate_url, allow_redirects=True, timeout=20)
+    if not response:
+        return None
+
+    # إذا حدث إعادة توجيه إلى رابط نهائي، استخدمه
+    if response.url and response.url != animerco_intermediate_url:
+        return _make_absolute_https(response.url)
+
+    # حاول استخراج زر أو رابط مشفّر في HTML
+    soup = BeautifulSoup(response.text, 'html.parser')
+    link_button = soup.find('a', id='link')
+    if link_button and 'data-url' in link_button.attrs:
+        encoded_url = link_button['data-url']
+        try:
+            final_url = base64.b64decode(encoded_url).decode('utf-8')
+            return _make_absolute_https(final_url)
+        except Exception:
+            pass
+
+    # بحث عام عن روابط في الصفحة (فائدة احتياطية)
+    # نبحث عن أول رابط m3u8 أو روابط مباشرة
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        if 'm3u8' in href or href.startswith('http'):
+            return _make_absolute_https(href)
+
+    return None
+
+def parse_servers_and_downloads(html_content, episode_url):
+    """يحلل HTML لاستخراج بيانات سيرفرات المشاهدة وروابط التحميل بدون هيدرز في الطلبات التالية."""
+    if not html_content:
+        return [], []
+
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    viewing_tasks_args = []        # سيحتوي على tuples (server_name, (post_id, type, nume, episode_url))
+    download_tasks_metadata = []   # metadata لربط النتائج
+    download_tasks_args = []       # وسيطات get_final_download_url_task
+
+    # --- تحضير مهام سيرفرات المشاهدة ---
+    server_list_ul = soup.find('ul', class_='server-list')
+    if server_list_ul:
+        for li in server_list_ul.find_all('li'):
+            a_tag = li.find('a', class_='option')
+            if a_tag:
+                server_name = a_tag.find('span', class_='server').get_text(strip=True) if a_tag.find('span', class_='server') else 'غير معروف'
+                post_id = a_tag.get('data-post')
+                server_type = a_tag.get('data-type')
+                server_nume = a_tag.get('data-nume')
+                if all([post_id, server_type, server_nume]):
+                    viewing_tasks_args.append((server_name, (post_id, server_type, server_nume, episode_url)))
+
+    # --- تحضير مهام روابط التحميل ---
+    download_div = soup.find('div', id='download')
+    if download_div:
+        download_table = download_div.find('table', class_='table')
+        if download_table and download_table.find('tbody'):
+            for row in download_table.find('tbody').find_all('tr'):
+                cols = row.find_all('td')
+                if len(cols) >= 4:
+                    intermediate_url = cols[0].find('a')['href'] if cols[0].find('a') else None
+
+                    server_name = 'غير معروف'
+                    favicon_div = cols[1].find('div', class_='favicon')
+                    if favicon_div and 'data-src' in favicon_div.attrs:
+                        parsed_favicon_url = urlparse(favicon_div['data-src'])
+                        query_params = parse_qs(parsed_favicon_url.query)
+                        if 'domain' in query_params:
+                            server_name = query_params['domain'][0].replace('www.', '').split('.')[0]
+                        else:
+                            server_name = parsed_favicon_url.netloc.replace('www.', '').split('.')[0]
+
+                    quality = cols[2].find('strong', class_='badge').get_text(strip=True) if cols[2].find('strong', class_='badge') else 'غير متوفرة'
+                    language = cols[3].get_text(strip=True)
+
+                    if intermediate_url:
+                        download_tasks_metadata.append({'server': server_name, 'quality': quality, 'language': language})
+                        download_tasks_args.append((intermediate_url, episode_url))
+
+    # --- تنفيذ المهام المتوازية ---
+    viewing_servers_data = []
+    download_servers_data = []
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        # جلب روابط المشاهدة المتوازية (نمرر فقط الوسيطات للـ worker)
+        embed_args_list = [args for _, args in viewing_tasks_args]
+        viewing_results = list(executor.map(get_embed_url_task, embed_args_list))
+
+        for i, embed_url in enumerate(viewing_results):
+            if embed_url:
+                server_name = viewing_tasks_args[i][0]
+                viewing_servers_data.append({'server_name': server_name, 'embed_url': embed_url})
+
+        # جلب روابط التحميل المتوازية
+        download_results = list(executor.map(get_final_download_url_task, download_tasks_args))
+        for i, final_url in enumerate(download_results):
+            if final_url:
+                info = download_tasks_metadata[i].copy()
+                info['url'] = final_url
+                download_servers_data.append(info)
+
+    return viewing_servers_data, download_servers_data
+
+# --- التنفيذ الرئيسي ---
+target_url = "https://get.animerco.org/episodes/boku-no-hero-academia-%d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9-1/"
+
+html_content = get_page_html(target_url)
+
+if html_content:
+    viewing_servers, download_servers = parse_servers_and_downloads(html_content, target_url)
+
+    print("\nسيرفرات المشاهدة:", file=sys.stdout)
+    if viewing_servers:
+        for server_info in viewing_servers:
+            print(f"- السيرفر: {server_info['server_name']}, الرابط: {server_info['embed_url']}", file=sys.stdout)
     else:
-        print("فشل استخراج الروابط.")
+        print("لا توجد سيرفرات مشاهدة.", file=sys.stdout)
+
+    print("\nروابط التحميل:", file=sys.stdout)
+    if download_servers:
+        for dl_server in download_servers:
+            print(f"- السيرفر: {dl_server['server']}, الجودة: {dl_server['quality']}, اللغة: {dl_server['language']}, الرابط: {dl_server['url']}", file=sys.stdout)
+    else:
+        print("لا توجد روابط تحميل.", file=sys.stdout)
+else:
+    print("تعذر جلب محتوى HTML للصفحة الرئيسية أو معالجة السيرفرات.", file=sys.stderr)
