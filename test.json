@@ -114,10 +114,10 @@
     "name": "Witanime"
   },
   {
-    "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcamMqAuvsinzX-pcOGRo1KkYEbfv2zVJawHsugiX3dDcr64h-CJiL8ShJ&s=10",
+    "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ03aoQBNDy_Hkm5MUGGvluPvK7To7BdGiSnzQn7WJ3fQ&s=10",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
-    "fileSize": 16392,
+    "fileSize": 4900,
     "status": 1,
     "language": "ar",
     "authors": [
@@ -128,10 +128,9 @@
       "Movie"
     ],
     "version": 1,
-    "internalName": "Cimanaw",
-    "description": "يستغرق تحميل الروابط قرابة 10 ثواني كن صبورا",
+    "internalName": "cimanaw",
     "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/CimaNowProvider.cs3",
-    "name": "Cimanaw"
+    "name": "cimanaw"
   },
   {
     "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjXYRCgXdHTs-hdcOKs1ooTW5plsBI7CWbsA&s",
