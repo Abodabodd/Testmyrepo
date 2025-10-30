@@ -14,6 +14,25 @@
       "Movie"
     ],
     "version": 1,
+    "internalName": "animw",
+    "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/Animewitcher.cs3",
+    "name": "animw"
+  },
+  {
+    "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ03aoQBNDy_Hkm5MUGGvluPvK7To7BdGiSnzQn7WJ3fQ&s=10",
+    "apiVersion": 1,
+    "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
+    "fileSize": 4200,
+    "status": 1,
+    "language": "ar",
+    "authors": [
+      "Abodabodd"
+    ],
+    "tvTypes": [
+      "TvSeries",
+      "Movie"
+    ],
+    "version": 1,
     "internalName": "egy",
     "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/Egydead.cs3",
     "name": "egy"
