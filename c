@@ -1,457 +1,296 @@
-package com.bristeg
+override suspend fun loadLinks(
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    Log.d(TAG, "loadLinks ▶ start — data=$data")
 
-import android.util.Log
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.Qualities
-import org.jsoup.nodes.Element
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import kotlinx.coroutines.GlobalScope
-import com.lagradost.cloudstream3.network.WebViewResolver
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+    // ------------------ بداية الدوال المدمجة ------------------
 
-import com.lagradost.cloudstream3.utils.JsUnpacker
-class BrstejProvider : MainAPI() {
-    // تعريف TAG ثابت لاستخدامه في Logcat
-    companion object {
-        private const val TAG = "BRSTEJ_DEBUG"
+    // helper: تحويل رقم إلى تمثيل في قاعدة (0..35)
+    fun intToBaseStr(n: Int, baseNum: Int): String {
+        val digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+        return if (n < baseNum) digits.getOrNull(n)?.toString() ?: "" 
+        else intToBaseStr(n / baseNum, baseNum) + (digits.getOrNull(n % baseNum) ?: "")
     }
 
-    override var mainUrl = "https://amd.brstej.com"
-    override var name = "برستيج"
-    override val hasMainPage = true
-    override var lang = "ar"
-    override val supportedTypes = setOf(
-        TvType.TvSeries,
-        TvType.Movie
-    )
-
-    private fun cleanPosterUrl(url: String?): String? {
-        if (url == null || url.isBlank()) return null
-        var u = url.trim()
-        val wpProxy = Regex("""https?://i\d+\.wp\.com/(.+)""")
-        val m = wpProxy.find(u)
-        if (m != null) {
-            u = m.groupValues[1]
-            if (!u.startsWith("http://") && !u.startsWith("https://")) {
-                u = "https://$u"
-            }
-        }
-        u = u.split("?")[0]
-        if (u.startsWith("//")) u = "https:$u"
-        if (!u.startsWith("http://") && !u.startsWith("https://")) {
-            val base = mainUrl.trimEnd('/')
-            when {
-                u.startsWith("/") -> u = "$base$u"
-                else -> u = "$base/$u"
-            }
-        }
-        return u
-    }
-
-    // ================== التعديل هنا ==================
-    private fun Element.toSearchResponse(): SearchResponse? {
-        Log.d(TAG, "-> toSearchResponse: بدء معالجة عنصر")
-
-        // 1. استهداف رابط العنوان لأنه أكثر موثوقية
-        val titleLinkElement = this.selectFirst("div.caption h3 a") ?: run {
-            Log.w(
-                TAG,
-                "toSearchResponse: لم يتم العثور على رابط العنوان (div.caption h3 a)، سيتم تخطي العنصر."
-            )
-            return null
-        }
-
-        val href = titleLinkElement.attr("href")
-        if (href.isBlank() || href == "#modal-login-form") {
-            Log.w(TAG, "toSearchResponse: الرابط فارغ أو رابط تسجيل دخول، سيتم تخطي العنصر.")
-            return null
-        }
-        Log.d(TAG, "toSearchResponse: تم العثور على الرابط الصحيح: $href")
-
-        val title = titleLinkElement.attr("title")?.trim() ?: titleLinkElement.text().trim()
-        if (title.isBlank()) {
-            Log.w(TAG, "toSearchResponse: لم يتم العثور على العنوان، سيتم تخطي العنصر.")
-            return null
-        }
-        Log.d(TAG, "toSearchResponse: تم العثور على العنوان: $title")
-
-        // 2. البحث عن البوستر في مكانه الأصلي
-        val img = this.selectFirst("div.pm-video-thumb img")
-        val rawPoster = img?.attr("data-echo") ?: img?.attr("data-original") ?: img?.attr("src")
-        val posterUrl = cleanPosterUrl(rawPoster)
-        Log.d(
-            TAG,
-            "toSearchResponse: رابط البوستر الخام: $rawPoster -> رابط البوستر النظيف: $posterUrl"
-        )
-
-        return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
-            this.posterUrl = posterUrl
-        }
-    }
-    // ================== نهاية التعديل ==================
-
-    override val mainPage = mainPageOf(
-        "index.php" to "الرئيسية",
-        "category818.php?cat=prss7-2025" to "مسلسلات برستيج",
-        "category.php?cat=movies2-2224" to "افلام",
-        "category.php?cat=ramdan1-2024" to "مسلسلات رمضان 2024",
-        "newvideo.php" to "أخر الاضافات"
-    )
-
-    override suspend fun getMainPage(
-        page: Int,
-        request: MainPageRequest
-    ): HomePageResponse {
-        Log.d(TAG, "===> getMainPage: بدء التنفيذ لـ '${request.name}'، صفحة: $page")
-        val url = "$mainUrl/${request.data}" + (if (page > 1) "&page=$page" else "")
-        Log.d(TAG, "getMainPage: الرابط الذي سيتم جلبه: $url")
-
-        try {
-            val document = app.get(url).document
-            Log.d(TAG, "getMainPage: تم جلب الصفحة بنجاح. عنوان الصفحة: ${document.title()}")
-
-            val selector =
-                "ul[class*='pm-ul-browse-videos'] > li, ul[class*='pm-ul-carousel-videos'] > li"
-            Log.d(TAG, "getMainPage: سيتم استخدام المحدد (selector): $selector")
-
-            val items = document.select(selector)
-            Log.d(TAG, "getMainPage: تم العثور على ${items.size} عنصر باستخدام المحدد.")
-
-            if (items.isEmpty()) {
-                Log.w(
-                    TAG,
-                    "getMainPage: تحذير: لم يتم العثور على أي عناصر. قد تكون الصفحة فارغة أو المحدد غير صحيح."
-                )
-            }
-
-            val home = items.mapNotNull {
-                it.toSearchResponse()
-            }
-            Log.d(TAG, "getMainPage: تم تحويل ${home.size} عنصر بنجاح.")
-
-            return newHomePageResponse(request.name, home)
-        } catch (e: Exception) {
-            Log.e(TAG, "getMainPage: حدث خطأ فادح أثناء جلب أو تحليل الصفحة!", e)
-            throw e
-        }
-    }
-
-    override suspend fun search(query: String): List<SearchResponse> {
-        Log.d(TAG, "===> search: بدء البحث عن: '$query'")
-        val url = "$mainUrl/search.php?keywords=$query"
-        Log.d(TAG, "search: الرابط الذي سيتم جلبه: $url")
-
-        try {
-            val document = app.get(url).document
-            Log.d(TAG, "search: تم جلب صفحة البحث بنجاح. عنوان الصفحة: ${document.title()}")
-
-            val selector = "ul.pm-ul-browse-videos > li"
-            Log.d(TAG, "search: سيتم استخدام المحدد (selector): $selector")
-
-            val items = document.select(selector)
-            Log.d(TAG, "search: تم العثور على ${items.size} نتيجة بحث.")
-
-            if (items.isEmpty()) {
-                Log.w(TAG, "search: تحذير: لم يتم العثور على أي نتائج بحث.")
-            }
-
-            val results = items.mapNotNull {
-                it.toSearchResponse()
-            }
-            Log.d(TAG, "search: تم تحويل ${results.size} نتيجة بنجاح.")
-            return results
-        } catch (e: Exception) {
-            Log.e(TAG, "search: حدث خطأ فادح أثناء البحث!", e)
-            throw e
-        }
-    }
-
-
-    private fun buildAbsoluteUrl(href: String?, base: String = mainUrl): String {
-        if (href.isNullOrBlank()) return ""
-        var h = href.trim()
-        if (h.startsWith("http://") || h.startsWith("https://")) return h
-        // إزالة بادئة ./ إن وُجدت
-        if (h.startsWith("./")) h = h.removePrefix("./")
-        // حالة "/path..."
-        val baseTrim = base.trimEnd('/')
-        return if (h.startsWith("/")) "$baseTrim$h" else "$baseTrim/$h"
-    }
-
-    // الآن الدالة معلّقة (suspend) لأنها تستدعي resolveUsingWebView الذي هو suspend
-
-
-    override suspend fun load(url: String): LoadResponse? {
-        try {
-            val document = app.get(url, timeout = 15).document
-            val title =
-                document.selectFirst("div.pm-video-heading h1")?.text()?.trim() ?: return null
-            val poster =
-                cleanPosterUrl(document.selectFirst("meta[property=og:image]")?.attr("content"))
-            val description =
-                document.selectFirst("div.pm-video-description > div.txtv")?.text()?.trim()
-            val tags = document.select("dl.dl-horizontal p a span").map { it.text() }
-
-            val isSeries = document.selectFirst("div.SeasonsBox") != null
-
-            if (isSeries) {
-                val episodes = mutableListOf<Episode>()
-
-                // اجلب قائمة المواسم
-                val seasonListItems = document.select("div.SeasonsBoxUL ul li")
-                for (seasonLi in seasonListItems) {
-                    val seasonName = seasonLi.text().trim()
-                    val seasonId = seasonLi.attr("data-serie")
-                    val seasonNum = seasonId.toIntOrNull()
-
-                    if (seasonId.isNullOrBlank()) continue
-
-                    // ابحث عن الحلقات الموافقة لمعرف الموسم
-                    val episodesSelector = "div.SeasonsEpisodes[data-serie='${seasonId}'] a"
-                    document.select(episodesSelector).forEach { epElement ->
-                        val epUrlRaw = epElement.attr("href")
-                        if (epUrlRaw.isBlank()) return@forEach
-
-                        val epUrl = buildAbsoluteUrl(epUrlRaw)
-                        val epName = epElement.attr("title").ifBlank { epElement.text() }
-                        val epNum = epElement.selectFirst("em")?.text()?.toIntOrNull()
-
-                        episodes.add(
-                            newEpisode(epUrl) {
-                                data = epUrl
-                                name = epName
-                                season = seasonNum
-                                episode = epNum
-                            }
-                        )
-                    }
-                }
-
-                // فرز حسب الموسم ثم رقم الحلقة
-                val sorted = episodes.sortedWith(compareBy<Episode> { it.season ?: Int.MAX_VALUE }
-                    .thenBy { it.episode ?: Int.MAX_VALUE })
-
-                return newTvSeriesLoadResponse(title, url, TvType.TvSeries, sorted) {
-                    this.posterUrl = poster
-                    this.plot = description
-                    this.tags = tags
-                }
-            } else {
-                return newMovieLoadResponse(title, url, TvType.Movie, url) {
-                    this.posterUrl = poster
-                    this.plot = description
-                    this.tags = tags
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return null
-        }
-    }
-
-
-    // ----- resolveEmbedWithUnpack محسّنة مع فحص مباشر وجميع لوجات التشخيص -----
-    // ضع هذه الدوال داخل نفس الكلاس BrstejProvider
-
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        Log.d(TAG, "loadLinks ▶ start — data=$data")
-
-        // ------------------ بداية الدوال المدمجة ------------------
-
-        // دالة فك التعمية (نفس منطق بايثون)
-        // دالة فك التعمية - النسخة النهائية والصحيحة
-        // دالة فك التعمية - النسخة النهائية التي تحاكي منطق بايثون الصحيح
-        fun unpackJs(packedJs: String): String? {
+    // helper: فك هروب JS داخل payload مثل \xNN و \uNNNN و escaped quotes/backslashes
+    fun jsUnescape(s: String): String {
+        var r = s
+        // \xNN
+        r = Regex("""\\x([0-9a-fA-F]{2})""").replace(r) { mr ->
             try {
-                Log.d(TAG, "unpackJs ▶ trying to unpack content length=${packedJs.length}")
-
-                // نمط مرن لالتقاط الوسائط
-                val regex = Regex("""eval\(function\(p,a,c,k,e,d\)\{(.*)\}\((.*?),(\d+),(\d+),'(.*?)'\.split\('\|'\)\)\)""", RegexOption.DOT_MATCHES_ALL)
-                val m = regex.find(packedJs) ?: run {
-                    Log.w(TAG, "unpackJs ▶ regex did not match the packed pattern")
-                    return null
-                }
-
-                val payloadWithQuotes = m.groupValues[2]
-                val payload = payloadWithQuotes.removeSurrounding("'").removeSurrounding("\"")
-                val base = m.groupValues[3].toIntOrNull() ?: return null
-                val count = m.groupValues[4].toIntOrNull() ?: return null
-                val dictionary = m.groupValues[5].split("|")
-
-                Log.d(TAG, "unpackJs ▶ captured base=$base count=$count dictLen=${dictionary.size} payloadLen=${payload.length}")
-
-
-                fun intToBaseStr(n: Int, baseNum: Int): String {
-                    val digits = "0123456789abcdefghijklmnopqrstuvwxyz"
-                    return if (n < baseNum) digits.getOrNull(n)?.toString() ?: ""
-                    else intToBaseStr(n / baseNum, baseNum) + (digits.getOrNull(n % baseNum) ?: "")
-                }
-
-                // --- المنطق الصحيح: بناء جدول البحث أولاً ---
-                val lookup = mutableMapOf<String, String>()
-                for (i in (count - 1) downTo 0) {
-                    val key = try { intToBaseStr(i, base) } catch (e: Exception) { i.toString() }
-                    val value = dictionary.getOrNull(i)?.ifBlank { key } ?: key
-                    lookup[key] = value
-                }
-
-                // --- المنطق الصحيح: استبدال في خطوة واحدة باستخدام لامدا ---
-                val tokenRegex = Regex("""\b\w+\b""")
-                val unpacked = tokenRegex.replace(payload) { matchResult ->
-                    lookup[matchResult.value] ?: matchResult.value
-                }
-
-                if (unpacked.isBlank() || !unpacked.contains("http")) {
-                    Log.w(TAG, "unpackJs ▶ Unpacked result seems invalid or doesn't contain links.")
-                    return null
-                }
-
-                Log.d(TAG, "unpackJs ▶ unpack success, length=${unpacked.length}")
-                return unpacked
-
+                val v = mr.groupValues[1]
+                (v.toInt(16)).toChar().toString()
             } catch (e: Exception) {
-                Log.e(TAG, "unpackJs ▶ exception", e)
+                mr.value
+            }
+        }
+        // \uNNNN
+        r = Regex("""\\u([0-9a-fA-F]{4})""").replace(r) { mr ->
+            try {
+                val v = mr.groupValues[1]
+                (v.toInt(16)).toChar().toString()
+            } catch (e: Exception) {
+                mr.value
+            }
+        }
+        r = r.replace("""\"""", "\"").replace("""\'""", "'").replace("""\\""", "\\")
+        r = r.replace("""\n""", "\n").replace("""\r""", "\r").replace("""\t""", "\t")
+        return r
+    }
+
+    // unpacker: مرن لالتقاط payload و dict و base و count
+    fun unpackJs(packedJs: String): String? {
+        try {
+            Log.d(TAG, "unpackJs ▶ trying to unpack content length=${packedJs.length}")
+
+            val regex = Regex(
+                """eval\(function\(p,a,c,k,e,d\)\{[\s\S]*?\}\s*\(\s*(['"])(.*?)\1\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(['"])(.*?)\5\.split\(['"]\|['"]\)\s*\)\s*\)""",
+                RegexOption.DOT_MATCHES_ALL
+            )
+            val m = regex.find(packedJs)
+            if (m == null) {
+                Log.w(TAG, "unpackJs ▶ regex did not match the packed pattern")
                 return null
             }
+
+            // groupIndices:
+            // groupValues[2] = payload, [3] = base, [4] = count, [6] = dictionary
+            val payloadRaw = m.groupValues[2]
+            val base = m.groupValues[3].toIntOrNull() ?: run {
+                Log.w(TAG, "unpackJs ▶ base parse failed")
+                return null
+            }
+            val count = m.groupValues[4].toIntOrNull() ?: run {
+                Log.w(TAG, "unpackJs ▶ count parse failed")
+                return null
+            }
+            val dictRaw = m.groupValues[6]
+            val dictionary = dictRaw.split("|")
+
+            Log.d(TAG, "unpackJs ▶ captured base=$base count=$count dictLen=${dictionary.size} payloadLen=${payloadRaw.length}")
+
+            // فك هروب الـ payload أولاً
+            val payload = jsUnescape(payloadRaw)
+
+            // بناء جدول البحث (lookup)
+            val lookup = mutableMapOf<String, String>()
+            for (i in (count - 1) downTo 0) {
+                val key = try { intToBaseStr(i, base) } catch (e: Exception) { i.toString() }
+                val value = dictionary.getOrNull(i)?.ifBlank { key } ?: key
+                lookup[key] = value
+            }
+
+            // استبدال التوكنات (كلمات أبجدي-رقمية)
+            val tokenRegex = Regex("""\b[a-zA-Z0-9]+\b""")
+            val unpacked = tokenRegex.replace(payload) { mr ->
+                lookup[mr.value] ?: mr.value
+            }
+
+            if (unpacked.isBlank()) {
+                Log.w(TAG, "unpackJs ▶ Unpacked result is blank.")
+                return null
+            }
+
+            Log.d(TAG, "unpackJs ▶ unpack success, length=${unpacked.length}")
+            return unpacked
+        } catch (e: Exception) {
+            Log.e(TAG, "unpackJs ▶ exception", e)
+            return null
         }
-        // دالة استخراج الرابط من صفحة التضمين
-        suspend fun extractFromEmbed(embedUrl: String, referer: String) {
-            try {
-                Log.d(TAG, "extractFromEmbed: GET $embedUrl")
-                val embedText = app.get(embedUrl, referer = referer, timeout = 15).text
+    }
 
-                val packedJsMatch = Regex(
-                    """eval\(function\(p,a,c,k,e,d\)\s*\{[\s\S]+?\}\s*\([\s\S]+?\)\)""",
-                    RegexOption.DOT_MATCHES_ALL
-                ).find(embedText)
+    // استخراج رابط الفيديو من نص HTML/JS مفكوك أو خام
+    fun findVideoInText(text: String): String? {
+        // عدة أنماط للبحث
+        val patterns = listOf(
+            Regex("""file\s*:\s*"(https?://[^"]+)"""),
+            Regex("""file\s*:\s*'(https?://[^']+)'"""),
+            Regex("""src\s*:\s*"(https?://[^"]+)"""),
+            Regex("""src\s*:\s*'(https?://[^']+)'"""),
+            Regex("https?://[^\\s\"']+\\.m3u8[^\\s\"']*"),
+            Regex("https?://[^\\s\"']+\\.mp4[^\\s\"']*")
+        )
+        for (p in patterns) {
+            val m = p.find(text)
+            if (m != null) return m.value.trim('"', '\'')
+        }
+        // JSON-like src: "file":"http..."
+        val jsonFile = Regex(""""file"\s*:\s*"([^"]+)"""").find(text)
+        if (jsonFile != null) return jsonFile.groupValues[1]
+        return null
+    }
 
-                if (packedJsMatch == null) {
-                    Log.w(
-                        TAG,
-                        "extractFromEmbed: no packed eval(...) found, sending fallback for $embedUrl"
-                    )
-                    callback(
-                        newExtractorLink(
-                            this.name,
-                            "${this.name} - embed (fallback)",
-                            embedUrl
-                        ) {
-                            this.referer = referer
-                            this.quality = Qualities.Unknown.value
-                        })
-                    return
-                }
+    // دالة استخراج الرابط من صفحة التضمين (suspend)
+    suspend fun extractFromEmbed(embedUrl: String, referer: String) {
+        try {
+            Log.d(TAG, "extractFromEmbed ▶ GET $embedUrl (referer=$referer)")
+            val embedResp = app.get(embedUrl, referer = referer, timeout = 15)
+            val embedText = embedResp.text
 
-                val packedJsCode = packedJsMatch.value
-                Log.d(TAG, "extractFromEmbed: found packed script length=${packedJsCode.length}")
+            // محاولة 0: ابحث عن رابط مباشر في الصفحة قبل أي فك
+            val direct = findVideoInText(embedText)
+            if (!direct.isNullOrBlank()) {
+                Log.i(TAG, "extractFromEmbed ▶ direct video found -> $direct")
+                callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} (direct)", direct) {
+                    this.referer = embedUrl
+                    this.quality = Qualities.Unknown.value
+                    this.isM3u8 = direct.contains(".m3u8")
+                })
+                return
+            }
 
-                // محاولة 1: JsUnpacker المدمجة
-                var unpacked = try {
-                    JsUnpacker(packedJsCode).unpack()
-                } catch (e: Exception) {
-                    null
-                }
+            // محاولة 1: البحث عن packed eval(...) في الصفحة
+            val packedJsMatch = Regex(
+                """eval\(function\(p,a,c,k,e,d\)\s*\{[\s\S]+?\}\s*\([\s\S]+?\)\)""",
+                RegexOption.DOT_MATCHES_ALL
+            ).find(embedText)
 
-                // محاولة 2: الدالة اليدوية كخطة بديلة
-                if (unpacked.isNullOrBlank()) {
-                    Log.d(TAG, "extractFromEmbed: JsUnpacker failed, trying python-style unpacker")
-                    unpacked = unpackJs(packedJsCode)
-                }
+            if (packedJsMatch == null) {
+                Log.w(TAG, "extractFromEmbed ▶ no packed eval(...) found for $embedUrl — fallback to embedUrl")
+                // fallback: return embed url itself as last resort
+                callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} - embed (fallback)", embedUrl) {
+                    this.referer = referer
+                    this.quality = Qualities.Unknown.value
+                    this.isM3u8 = embedUrl.contains(".m3u8")
+                })
+                return
+            }
 
-                if (unpacked.isNullOrBlank()) {
-                    Log.w(TAG, "extractFromEmbed: unpacking failed for $embedUrl, sending fallback")
-                    callback(
-                        newExtractorLink(
-                            this.name,
-                            "${this.name} - embed (fallback)",
-                            embedUrl
-                        ) {
-                            this.referer = referer
-                            this.quality = Qualities.Unknown.value
-                        })
-                    return
-                }
+            val packedJsCode = packedJsMatch.value
+            Log.d(TAG, "extractFromEmbed ▶ packed script found length=${packedJsCode.length}")
 
-                Log.d(TAG, "extractFromEmbed: unpacked length=${unpacked.length}")
+            // محاولة 2: JsUnpacker المدمجة
+            var unpacked: String? = try {
+                JsUnpacker(packedJsCode).unpack()
+            } catch (e: Exception) {
+                Log.w(TAG, "extractFromEmbed ▶ JsUnpacker threw: ${e.message}")
+                null
+            }
 
-                val fileMatch = Regex("""file\s*:\s*"(https?://.*?)"""").find(unpacked)
-                if (fileMatch != null) {
-                    val videoUrl = fileMatch.groupValues[1]
-                    Log.i(TAG, "extractFromEmbed: extracted video url -> $videoUrl")
-                    callback(newExtractorLink(this.name, "${this.name} (unpacked)", videoUrl) {
+            // محاولة 3: unpack اليدوي
+            if (unpacked.isNullOrBlank()) {
+                Log.d(TAG, "extractFromEmbed ▶ JsUnpacker failed or returned blank — trying manual unpackJs")
+                unpacked = unpackJs(packedJsCode)
+            }
+
+            // محاولة 4: لو ما زال فارغ — حاول استخراج أي روابط من الـ packedJs نفسه (أحيانًا payload مخبأ)
+            if (unpacked.isNullOrBlank()) {
+                Log.w(TAG, "extractFromEmbed ▶ unpacking failed for $embedUrl — scanning page for any https links as fallback")
+                val pageFallback = findVideoInText(embedText)
+                if (!pageFallback.isNullOrBlank()) {
+                    Log.i(TAG, "extractFromEmbed ▶ fallback found -> $pageFallback")
+                    callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} (fallback)", pageFallback) {
                         this.referer = embedUrl
                         this.quality = Qualities.Unknown.value
+                        this.isM3u8 = pageFallback.contains(".m3u8")
                     })
-                } else {
-                    Log.w(
-                        TAG,
-                        "extractFromEmbed: no file found in unpacked script, sending fallback for $embedUrl"
-                    )
-                    callback(
-                        newExtractorLink(
-                            this.name,
-                            "${this.name} - embed (fallback)",
-                            embedUrl
-                        ) {
-                            this.referer = referer
-                            this.quality = Qualities.Unknown.value
-                        })
+                    return
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "extractFromEmbed: unexpected error for $embedUrl", e)
-                callback(
-                    newExtractorLink(
-                        this.name,
-                        "${this.name} - embed (error fallback)",
-                        embedUrl
-                    ) {
-                        this.referer = referer
-                        this.quality = Qualities.Unknown.value
-                    })
-            }
-        }
-        // ------------------ نهاية الدوال المدمجة ------------------
 
-        try {
-            val watchDoc = app.get(data, referer = mainUrl, timeout = 15).document
-            val playHrefRaw = watchDoc.selectFirst("a.xtgo")?.attr("href") ?: return false
-            val playUrl = buildAbsoluteUrl(playHrefRaw)
-            val playDoc = app.get(playUrl, referer = data, timeout = 15).document
-
-            val processedUrls = mutableSetOf<String>()
-
-            // استخدم coroutineScope لضمان تشغيل كل شيء في الخلفية دون حجب الخيط الرئيسي
-            kotlinx.coroutines.coroutineScope {
-                // 1. استخراج الروابط من أزرار السيرفرات
-                playDoc.select("div#WatchServers button.watchButton, div#WatchServers button.watchbutton")
-                    .forEach { btn ->
-                        val embedUrl = btn.attr("data-embed-url")?.let { buildAbsoluteUrl(it) }
-                        if (!embedUrl.isNullOrBlank() && processedUrls.add(embedUrl)) { // .add() returns true if item was added
-                            Log.d(TAG, "loadLinks: Found button embedUrl='$embedUrl'")
-                            launch { extractFromEmbed(embedUrl, playUrl) }
-                        }
-                    }
-
-                // 2. استخراج الرابط من الـ iframe إذا وُجد
-                val iframeSrc = playDoc.selectFirst("div#Playerholder iframe")?.attr("src")
-                    ?.let { buildAbsoluteUrl(it) }
-                if (!iframeSrc.isNullOrBlank() && processedUrls.add(iframeSrc)) {
-                    Log.d(TAG, "loadLinks: Found iframe src='$iframeSrc'")
-                    launch { extractFromEmbed(iframeSrc, playUrl) }
-                }
+                // إرسال fallback إلى المستخدم (لو لم يعثر شيء)
+                callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} - embed (fallback)", embedUrl) {
+                    this.referer = referer
+                    this.quality = Qualities.Unknown.value
+                    this.isM3u8 = embedUrl.contains(".m3u8")
+                })
+                return
             }
 
-            return processedUrls.isNotEmpty()
+            Log.d(TAG, "extractFromEmbed ▶ unpacked length=${unpacked.length}")
+
+            // البحث عن رابط الفيديو داخل الشيفرة المفكوكة
+            val fileMatch = Regex("""file\s*:\s*"(https?://[^"]+)"""").find(unpacked)
+            if (fileMatch != null) {
+                val videoUrl = fileMatch.groupValues[1]
+                Log.i(TAG, "extractFromEmbed ▶ extracted video url -> $videoUrl")
+                callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} (unpacked)", videoUrl) {
+                    this.referer = embedUrl
+                    this.quality = Qualities.Unknown.value
+                    this.isM3u8 = videoUrl.contains(".m3u8")
+                })
+                return
+            }
+
+            // محاولة إضافية: البحث عن أي رابط m3u8 أو mp4 داخل النص المفكوك
+            val anyLink = Regex("""https?://[^\s'"]+\.(?:m3u8|mp4)[^\s'"]*""").find(unpacked)
+            if (anyLink != null) {
+                val videoUrl = anyLink.value
+                Log.i(TAG, "extractFromEmbed ▶ found direct media in unpacked -> $videoUrl")
+                callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} (unpacked-media)", videoUrl) {
+                    this.referer = embedUrl
+                    this.quality = Qualities.Unknown.value
+                    this.isM3u8 = videoUrl.contains(".m3u8")
+                })
+                return
+            }
+
+            // لو وصلنا هنا — لم نجد رابط في الـ unpacked
+            Log.w(TAG, "extractFromEmbed ▶ no file found in unpacked script for $embedUrl — sending fallback")
+            callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} - embed (fallback)", embedUrl) {
+                this.referer = referer
+                this.quality = Qualities.Unknown.value
+                this.isM3u8 = embedUrl.contains(".m3u8")
+            })
         } catch (e: Exception) {
-            Log.e(TAG, "loadLinks: top-level error", e)
+            Log.e(TAG, "extractFromEmbed ▶ unexpected error for $embedUrl", e)
+            callback(newExtractorLink(this@BrstejProvider.name, "${this@BrstejProvider.name} - embed (error)", embedUrl) {
+                this.referer = referer
+                this.quality = Qualities.Unknown.value
+                this.isM3u8 = embedUrl.contains(".m3u8")
+            })
+        }
+    }
+
+    // ------------------ نهاية الدوال المدمجة ------------------
+
+    try {
+        val watchDoc = app.get(data, referer = mainUrl, timeout = 15).document
+        val playHrefRaw = watchDoc.selectFirst("a.xtgo")?.attr("href") ?: run {
+            Log.w(TAG, "loadLinks ▶ a.xtgo not found for $data")
             return false
         }
+        val playUrl = buildAbsoluteUrl(playHrefRaw)
+        Log.d(TAG, "loadLinks ▶ playUrl = $playUrl")
+        val playDoc = app.get(playUrl, referer = data, timeout = 15).document
+
+        val processedUrls = mutableSetOf<String>()
+
+        kotlinx.coroutines.coroutineScope {
+            // extract from WatchServers buttons
+            playDoc.select("div#WatchServers button.watchButton, div#WatchServers button.watchbutton").forEach { btn ->
+                val raw = btn.attr("data-embed-url").ifBlank { btn.attr("data-embed") }
+                val embedUrl = raw?.let { buildAbsoluteUrl(it) } ?: ""
+                if (embedUrl.isNotBlank() && processedUrls.add(embedUrl)) {
+                    Log.d(TAG, "loadLinks ▶ found button embedUrl='$embedUrl'")
+                    launch { extractFromEmbed(embedUrl, playUrl) }
+                }
+            }
+
+            // iframe in Playerholder
+            val iframeSrc = playDoc.selectFirst("div#Playerholder iframe")?.attr("src")?.let { buildAbsoluteUrl(it) }
+            if (!iframeSrc.isNullOrBlank() && processedUrls.add(iframeSrc)) {
+                Log.d(TAG, "loadLinks ▶ found iframe src='$iframeSrc'")
+                launch { extractFromEmbed(iframeSrc, playUrl) }
+            }
+
+            // also scan any other iframe on the play page as extra
+            playDoc.select("iframe").forEach { ifr ->
+                val src = ifr.attr("src")
+                val full = src.let { buildAbsoluteUrl(it) }
+                if (full.isNotBlank() && processedUrls.add(full)) {
+                    Log.d(TAG, "loadLinks ▶ found extra iframe src='$full'")
+                    launch { extractFromEmbed(full, playUrl) }
+                }
+            }
+        }
+
+        Log.d(TAG, "loadLinks ▶ finished — processed ${processedUrls.size} embeds")
+        return processedUrls.isNotEmpty()
+    } catch (e: Exception) {
+        Log.e(TAG, "loadLinks ▶ top-level error", e)
+        return false
     }
 }
