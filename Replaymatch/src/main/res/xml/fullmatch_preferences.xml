@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="Sections (Home Page)">
+        <SwitchPreferenceCompat
+            android:key="show_premier_league"
+            android:title="Premier League"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_la_liga"
+            android:title="La liga"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_champions_league"
+            android:title="Champions League"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_europa_league"
+            android:title="Europa League"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_fa_cup"
+            android:title="FA Cup"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_bundesliga"
+            android:title="BundesLiga"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_dfb_pokal"
+            android:title="DFB Pokal"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_serie_a"
+            android:title="Serie A"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_coppa_italia"
+            android:title="Coppa Italia"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="show_saudi_pro"
+            android:title="Saudi Pro League"
+            android:defaultValue="true" />
+    </PreferenceCategory>
+
+</PreferenceScreen>
