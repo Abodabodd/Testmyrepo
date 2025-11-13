@@ -11,6 +11,7 @@
     ],
     "tvTypes": [
       "TvSeries",
+      "Anime",
       "Movie"
     ],
     "version": 1,
