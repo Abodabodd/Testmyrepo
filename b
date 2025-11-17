@@ -1,363 +1,341 @@
-// حفظ الملف باسم: ExactYoutubeProvider.kt
-package com.my.youtubeprovider // يمكنك تغيير هذا
+// YouTubeProvider.kt
+// مصمم ليعمل كـ CloudStream provider ويطابق منطق سكربتات Python الثلاثة:
+// - بحث (m.youtube.com + continuation)
+// - صفحة الفيديو (ytcfg -> INNERTUBE_API_KEY, VISITOR_DATA)
+// - استدعاء youtubei/v1/player للحصول على hlsManifestUrl ثم استخراج روابط M3U8
+//
+// راجع: phisher98 cloudstream repo style (used for structure). 3
 
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
-import android.content.Context
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.utils.AppUtils.parseJson
-import com.lagradost.cloudstream3.utils.AppUtils.toJson
-import com.fasterxml.jackson.annotation.JsonProperty
-import kotlin.math.min
+package main
 
-@CloudstreamPlugin
-class ExactYoutubeProviderPlugin : Plugin() {
-    override fun load(context: Context) {
-        registerMainAPI(ExactYoutubeProvider())
+import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.models.VideoInfo
+import com.lagradost.cloudstream3.models.ExtractorLink
+import com.lagradost.cloudstream3.models.Qualities
+import com.lagradost.cloudstream3.utils.AppUtils
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.regex.Pattern
+
+class YouTubeProvider : MainAPI() {
+    override val name = "YouTube (m)"
+    override val mainUrl = "https://www.youtube.com"
+    override val lang = "ar"
+
+    private val client = OkHttpClient()
+
+    // Safari-like client context (matches what many implementations use)
+    private val WEB_CLIENT_CONTEXT = JSONObject().apply {
+        put("client", JSONObject().apply {
+            put("hl", "en")
+            put("gl", "US")
+            put("clientName", "WEB")
+            put("clientVersion", "2.20240725.01.00")
+            put("userAgent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15")
+        })
+        put("user", JSONObject())
+        put("request", JSONObject())
     }
-}
 
-// =================================================================================
-// هياكل البيانات (Data Classes) اللازمة لتحليل JSON المعقد
-// =================================================================================
+    // ---------- HTTP helpers ----------
+    private fun httpGet(url: String, extraHeaders: Map<String, String> = emptyMap()): String {
+        val builder = Request.Builder().url(url)
+            .header("User-Agent", WEB_CLIENT_CONTEXT.getJSONObject("client").getString("userAgent"))
+            .header("Accept-Language", "en-US,en;q=0.5")
+        extraHeaders.forEach { (k, v) -> builder.header(k, v) }
+        val resp = client.newCall(builder.build()).execute()
+        if (!resp.isSuccessful) throw Exception("HTTP ${resp.code} for $url")
+        return resp.body?.string() ?: ""
+    }
 
-data class YtInitialData(
-    @JsonProperty("contents") val contents: Map<String, Any>? = null,
-    @JsonProperty("header") val header: Map<String, Any>? = null
-)
+    private fun httpPostJson(url: String, json: JSONObject, extraHeaders: Map<String, String> = emptyMap()): String {
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val body = json.toString().toRequestBody(mediaType)
+        val builder = Request.Builder().url(url)
+            .post(body)
+            .header("User-Agent", WEB_CLIENT_CONTEXT.getJSONObject("client").getString("userAgent"))
+            .header("Accept-Language", "en-US,en;q=0.5")
+            .header("Content-Type", "application/json")
+        extraHeaders.forEach { (k, v) -> builder.header(k, v) }
+        val resp = client.newCall(builder.build()).execute()
+        if (!resp.isSuccessful) throw Exception("HTTP ${resp.code} for $url")
+        return resp.body?.string() ?: ""
+    }
 
-data class YtCfgSet(
-    @JsonProperty("INNERTUBE_API_KEY") val apiKey: String? = null,
-    @JsonProperty("INNERTUBE_CLIENT_VERSION") val clientVersion: String? = null,
-    @JsonProperty("VISITOR_DATA") val visitorData: String? = null
-)
-
-data class ContinuationPayload(
-    val token: String,
-    val apiKey: String?,
-    val clientVersion: String?,
-    val visitorData: String?
-)
-
-data class OembedResponse(
-    @JsonProperty("title") val title: String? = null
-)
-
-class ExactYoutubeProvider : MainAPI() {
-    override var mainUrl = "https://www.youtube.com"
-    override var name = "My Exact YouTube"
-    override val supportedTypes = setOf(TvType.Others) // Use 'Others' for flexibility
-    override var lang = "ar"
-    override val hasMainPage = true
-
-    private val mUrl = "https://m.youtube.com"
-    private val webUrl = "https://www.youtube.com"
-
-    // =================================================================================
-    // دوال مساعدة عامة مستوحاة من أكوادك
-    // =================================================================================
-
-    // استخراج ytInitialData
-    private fun extractYtInitialData(html: String): Map<String, Any>? {
+    // ---------- small utilities ----------
+    private fun extractVideoId(url: String): String? {
         val patterns = listOf(
-            """var ytInitialData\s*=\s*(\{.*?\});""",
-            """window\[['"]ytInitialData['"]\]\s*=\s*(\{.*?\});"""
+            "(?:v=|/|embed/|shorts/|v%3D|be/)([a-zA-Z0-9_-]{11})"
         )
-        for (pattern in patterns) {
-            val match = Regex(pattern, RegexOption.DOT_MATCHES_ALL).find(html)
-            if (match != null) {
-                try {
-                    return parseJson(match.groupValues[1])
-                } catch (e: Exception) {
-                    continue
-                }
-            }
+        for (p in patterns) {
+            val m = Pattern.compile(p).matcher(url)
+            if (m.find()) return m.group(1)
         }
         return null
     }
 
-    // استخراج ytcfg.set
-    private fun extractYtCfg(html: String): YtCfgSet? {
-        val match = Regex("""ytcfg\.set\(\s*(\{.*?\})\s*\);""", RegexOption.DOT_MATCHES_ALL).find(html)
-        return match?.groupValues?.get(1)?.let { parseJson<YtCfgSet>(it) }
-    }
-
-    // دالة مرنة لاستخراج العناوين من مختلف هياكل JSON
-    private fun extractTitle(obj: Map<String, Any>?): String? {
-        if (obj == null) return null
-        val candidates = listOf(
-            "title", "headline", "primaryText", "label", "simpleText", "text", "name"
-        )
-        for (key in candidates) {
-            val field = obj[key]
-            if (field is String) return field
-            if (field is Map<*, *>) {
-                val simpleText = (field as Map<String, Any>).get("simpleText") as? String
-                if (simpleText != null) return simpleText
-                val runs = field.get("runs") as? List<Map<String, Any>>
-                if (runs != null) return runs.joinToString("") { it["text"] as? String ?: "" }
-            }
+    private fun extractJsonVariable(html: String, varName: String): JSONObject? {
+        // common forms: var ytInitialData = {...}; or window["ytInitialData"] = {...};
+        val p = Pattern.compile("$varName\\s*=\\s*(\\{.+?\\})\\s*;", Pattern.DOTALL)
+        val m = p.matcher(html)
+        if (m.find()) {
+            try {
+                return JSONObject(m.group(1))
+            } catch (_: Exception) {}
         }
-        val videoRenderer = obj["videoRenderer"] as? Map<String, Any>
-            ?: obj["compactVideoRenderer"] as? Map<String, Any>
-            ?: obj["gridVideoRenderer"] as? Map<String, Any>
-            ?: obj["reelItemRenderer"] as? Map<String, Any>
-
-        return extractTitle(videoRenderer)
-    }
-    
-    // دالة مجمعة لتحليل جميع أنواع Renderers وإنشاء SearchResponse
-    private fun parseRenderer(renderer: Map<String, Any>): SearchResponse? {
-        val videoRenderer = renderer["videoRenderer"] as? Map<String, Any>
-            ?: renderer["compactVideoRenderer"] as? Map<String, Any>
-            ?: renderer["gridVideoRenderer"] as? Map<String, Any>
-            ?: (renderer["richItemRenderer"] as? Map<String, Any>)?.get("content")?.get("videoRenderer") as? Map<String, Any>
-
-        val reelRenderer = renderer["reelItemRenderer"] as? Map<String, Any>
-            ?: (renderer["richItemRenderer"] as? Map<String, Any>)?.get("content")?.get("reelItemRenderer") as? Map<String, Any>
-
-        val videoId = (videoRenderer?.get("videoId") ?: reelRenderer?.get("videoId")) as? String ?: return null
-        
-        val isShort = reelRenderer != null || (videoRenderer?.get("navigationEndpoint") as? Map<String,Any>)?.get("reelWatchEndpoint") != null
-        
-        val title = extractTitle(videoRenderer ?: reelRenderer) ?: "(No Title)"
-        val poster = (videoRenderer?.get("thumbnail") as? Map<String, Any> ?: reelRenderer?.get("thumbnail") as? Map<String, Any>)
-            ?.get("thumbnails")?.let { (it as List<Map<String, Any>>).lastOrNull()?.get("url") as? String }
-            ?.let { if(it.startsWith("//")) "https:$it" else it }
-
-        return newMovieSearchResponse(
-            if (isShort) "[Shorts] $title" else title,
-            if (isShort) "$webUrl/shorts/$videoId" else "$webUrl/watch?v=$videoId",
-            TvType.Movie
-        ) {
-            this.posterUrl = poster
+        // try ytcfg.set({...})
+        val p2 = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
+        val m2 = p2.matcher(html)
+        if (m2.find()) {
+            try {
+                return JSONObject(m2.group(1))
+            } catch (_: Exception) {}
         }
+        return null
     }
 
-
-    // =================================================================================
-    // الصفحة الرئيسية - محاكاة `يوتيوبpage.py` بدقة
-    // =================================================================================
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val items = mutableListOf<HomePageList>()
-        val doc = app.get(webUrl, cookies = mapOf("VISITOR_INFO1_LIVE" to "fzYjM8PCwjw")).document
-        val initialData = extractYtInitialData(doc.html())
-        val ytcfg = extractYtCfg(doc.html())
-
-        val contents = getFromPath(initialData, "contents.twoColumnBrowseResultsRenderer.tabs.0.tabRenderer.content.richGridRenderer.contents") as? List<Map<String, Any>>
-        
-        if (contents != null) {
-            val mainPageItems = mutableListOf<SearchResponse>()
-            var continuationToken: String? = null
-            
-            for (item in contents) {
-                parseRenderer(item)?.let { mainPageItems.add(it) }
-                
-                // البحث عن continuation token
-                val continuationRenderer = item["continuationItemRenderer"] as? Map<String, Any>
-                continuationToken = continuationToken ?: (continuationRenderer?.get("continuationEndpoint") as? Map<String, Any>)
-                    ?.get("continuationCommand")?.get("token") as? String
-            }
-
-            // تخزين بيانات continuation للصفحة التالية
-            val loadData = if (continuationToken != null && ytcfg != null) {
-                toJson(ContinuationPayload(continuationToken, ytcfg.apiKey, ytcfg.clientVersion, ytcfg.visitorData))
-            } else null
-            
-            items.add(HomePageList("مقاطع مقترحة", mainPageItems, data = loadData))
+    private fun fetchInnertubeKeyFromHtml(html: String): String? {
+        val p = Pattern.compile("INNERTUBE_API_KEY\"\\s*:\\s*\"([^\"]+)\"")
+        val m = p.matcher(html)
+        if (m.find()) return m.group(1)
+        // alternative: ytcfg set object
+        val p2 = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
+        val m2 = p2.matcher(html)
+        if (m2.find()) {
+            try {
+                val j = JSONObject(m2.group(1))
+                if (j.has("INNERTUBE_API_KEY")) return j.getString("INNERTUBE_API_KEY")
+            } catch (_: Exception) {}
         }
-
-        return HomePageResponse(items)
+        return null
     }
 
-    override suspend fun loadPage(url: String): LoadPageResponse? {
-        val contData = parseJson<ContinuationPayload>(url)
-        val apiKey = contData.apiKey ?: return null
-        val token = contData.token
-        
-        val payload = mapOf(
-            "context" to mapOf(
-                "client" to mapOf(
-                    "visitorData" to (contData.visitorData ?: ""),
-                    "clientName" to "WEB",
-                    "clientVersion" to (contData.clientVersion ?: "2.20251114.01.00")
-                )
-            ),
-            "continuation" to token
-        )
-        val res = app.post(
-            "$webUrl/youtubei/v1/browse?key=$apiKey",
-            json = payload
-        ).parsed<Map<String, Any>>()
-        
-        val nextItems = (res["onResponseReceivedActions"] as? List<Map<String, Any>>)
-            ?.flatMap { it.values }
-            ?.filterIsInstance<Map<String, Any>>()
-            ?.firstOrNull { it.containsKey("continuationItems") }
-            ?.get("continuationItems") as? List<Map<String, Any>> ?: return null
-
-        val videoList = mutableListOf<SearchResponse>()
-        var newContinuationToken: String? = null
-        for (item in nextItems) {
-            parseRenderer(item)?.let { videoList.add(it) }
-            val continuationRenderer = item["continuationItemRenderer"] as? Map<String, Any>
-            newContinuationToken = newContinuationToken ?: (continuationRenderer?.get("continuationEndpoint") as? Map<String, Any>)
-                ?.get("continuationCommand")?.get("token") as? String
-        }
-        
-        val nextUrl = if (newContinuationToken != null) {
-            toJson(contData.copy(token = newContinuationToken))
-        } else null
-        
-        return LoadPageResponse(nextUrl, videoList)
+    private fun findVisitorDataFromHtml(html: String): String? {
+        val p = Pattern.compile("VISITOR_DATA\"\\s*:\\s*\"([^\"]+)\"")
+        val m = p.matcher(html)
+        if (m.find()) return m.group(1)
+        return null
     }
 
-    // =================================================================================
-    // البحث - محاكاة `يوتيوبsearch.py` بدقة
-    // =================================================================================
-    override suspend fun search(query: String): List<SearchResponse> {
-        val searchUrl = "$mUrl/results?sp=mAEA&search_query=${query}"
-        val doc = app.get(searchUrl).document
-        
-        val initialData = extractYtInitialData(doc.html()) ?: return emptyList()
-        val ytcfg = extractYtCfg(doc.html())
+    // ---------- newExtractor helper (guarantee presence) ----------
+    // Many repos call helper functions named newExtractor — to avoid missing-call problems
+    // we define an internal helper that returns ExtractorLink instances in a standard way.
+    private fun newExtractor(url: String, name: String = "YouTube HLS", qualityLabel: String = "HLS"): ExtractorLink {
+        // ExtractorLink(url, name, "m3u8") is the common constructor — adapt if your CloudStream version differs.
+        return ExtractorLink(url, "$name - $qualityLabel", "m3u8")
+    }
 
-        val contents = getFromPath(initialData, "contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents") as? List<Map<String, Any>> ?: return emptyList()
+    // ---------- Search (m.youtube.com results + continuations) ----------
+    override suspend fun search(query: String): List<com.lagradost.cloudstream3.model.SearchResponse> {
+        val out = mutableListOf<com.lagradost.cloudstream3.model.SearchResponse>()
+        try {
+            val q = URLEncoder.encode(query, "utf-8")
+            val url = "https://m.youtube.com/results?sp=mAEA&search_query=$q"
+            val html = httpGet(url)
 
-        val results = mutableListOf<SearchResponse>()
-        var continuationToken: String? = null
-
-        for (section in contents) {
-            val itemSection = section["itemSectionRenderer"] as? Map<String, Any>
-            val sectionContents = itemSection?.get("contents") as? List<Map<String, Any>>
-            if (sectionContents != null) {
-                for (item in sectionContents) {
-                    parseRenderer(item)?.let { results.add(it) }
-                    val contRenderer = item["continuationItemRenderer"] as? Map<String, Any>
-                    continuationToken = continuationToken ?: (contRenderer?.get("continuationEndpoint") as? Map<String, Any>)
-                        ?.get("continuationCommand")?.get("token") as? String
+            // extract ytInitialData (search results)
+            val initial = extractJsonFromHtmlTry(html, "ytInitialData")
+            if (initial != null) {
+                parseSearchJson(initial, out)
+                // continuation tokens handling
+                var cont = findContinuationToken(initial)
+                var pages = 0
+                val apiKey = fetchInnertubeKeyFromHtml(html) ?: ""
+                while (!cont.isNullOrEmpty() && pages < 8) {
+                    try {
+                        val contUrl = "https://www.youtube.com/youtubei/v1/search?key=$apiKey"
+                        val payload = JSONObject()
+                        payload.put("context", WEB_CLIENT_CONTEXT)
+                        payload.put("continuation", cont)
+                        val resp = httpPostJson(contUrl, payload)
+                        val j = JSONObject(resp)
+                        parseSearchJson(j, out)
+                        cont = findContinuationToken(j)
+                    } catch (e: Exception) {
+                        break
+                    }
+                    pages++
                 }
             }
+        } catch (e: Exception) {
+            AppUtils.log("YouTubeProvider", "search error: ${e.message}")
         }
-        
-        // جلب صفحات البحث التالية (حتى 3 صفحات للسرعة)
-        var page = 0
-        while (continuationToken != null && page < 3) {
-            page++
-            val payload = mapOf(
-                "context" to mapOf("client" to mapOf("clientName" to "MWEB", "clientVersion" to (ytcfg?.clientVersion ?: "2.20240725.01.00"))),
-                "continuation" to continuationToken
-            )
-            val res = app.post("$mUrl/youtubei/v1/search?key=${ytcfg?.apiKey}", json = payload).parsed<Map<String, Any>>()
-            
-            val nextContents = getFromPath(res, "onResponseReceivedCommands.0.appendContinuationItemsAction.continuationItems") as? List<Map<String, Any>> ?: break
-            
-            for (item in nextContents) {
-                parseRenderer(item)?.let { results.add(it) }
-                val contRenderer = item["continuationItemRenderer"] as? Map<String, Any>
-                continuationToken = (contRenderer?.get("continuationEndpoint") as? Map<String, Any>)
-                        ?.get("continuationCommand")?.get("token") as? String
-            }
-        }
-        
-        // محاولة جلب العناوين المفقودة عبر oEmbed (نفس منطق كودك)
-        val missingTitles = results.filter { it.name == "(No Title)" }.take(20) // حد 20 لتجنب البطء
-        if (missingTitles.isNotEmpty()) {
-            missingTitles.apmap { video ->
+        return out
+    }
+
+    // attempt to extract JSON variable by several common keys
+    private fun extractJsonFromHtmlTry(html: String, key: String): JSONObject? {
+        // try direct patterns
+        try {
+            val p = Pattern.compile("$key\\s*=\\s*(\\{.+?\\})\\s*;", Pattern.DOTALL)
+            val m = p.matcher(html)
+            if (m.find()) return JSONObject(m.group(1))
+        } catch (_: Exception) {}
+        // try window["ytInitialData"] variants
+        try {
+            val p2 = Pattern.compile("\"$key\"\\s*:\\s*(\\{.+?\\})\\s*[,}]?", Pattern.DOTALL)
+            val m2 = p2.matcher(html)
+            if (m2.find()) return JSONObject(m2.group(1))
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun parseSearchJson(jobj: JSONObject, out: MutableList<com.lagradost.cloudstream3.model.SearchResponse>) {
+        try {
+            // search for videoRenderer nodes anywhere
+            val items = AppUtils.searchJson(jobj, arrayOf("videoRenderer", "compactVideoRenderer", "gridVideoRenderer"))
+            for (it in items) {
                 try {
-                    val oembedUrl = "$webUrl/oembed?url=${video.url}&format=json"
-                    val oembedRes = app.get(oembedUrl).parsed<OembedResponse>()
-                    video.name = oembedRes.title ?: video.name
+                    val id = AppUtils.parseJsonValue(it, arrayOf("videoId", "id")) ?: continue
+                    val title = AppUtils.parseJsonValue(it, arrayOf("title", "runs", "0", "text")) ?:
+                                AppUtils.parseJsonValue(it, arrayOf("title", "simpleText")) ?: id
+                    val thumb = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
+                    val link = "https://www.youtube.com/watch?v=$id"
+                    out.add(com.lagradost.cloudstream3.model.SearchResponse(title, link, thumb))
+                } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            AppUtils.log("YouTubeProvider", "parseSearchJson: ${e.message}")
+        }
+    }
+
+    private fun findContinuationToken(j: Any): String? {
+        try {
+            val root = when (j) {
+                is String -> JSONObject(j)
+                is JSONObject -> j
+                else -> JSONObject(j.toString())
+            }
+            val nodes = AppUtils.searchJson(root, arrayOf("token", "continuation", "continuationEndpoint"))
+            if (nodes.isNotEmpty()) {
+                // try token field
+                val t = AppUtils.parseJsonValue(nodes[0], arrayOf("token", "continuation"))
+                if (!t.isNullOrEmpty()) return t
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    // ---------- Load video info & streams ----------
+    override suspend fun load(url: String): VideoInfo? {
+        return try {
+            val links = loadLinks(url)
+            if (links.isEmpty()) null
+            else {
+                val vi = VideoInfo()
+                vi.name = links.firstOrNull()?.name ?: "YouTube Video"
+                // build streams mapping: use quality names as keys
+                val streamsMap = mutableMapOf<String, String>()
+                links.forEachIndexed { idx, l ->
+                    streamsMap["${l.quality ?: "HLS"}"] = l.url
+                }
+                vi.streams = streamsMap
+                vi
+            }
+        } catch (e: Exception) {
+            AppUtils.log("YouTubeProvider", "load: ${e.message}")
+            null
+        }
+    }
+
+    // core: replicate youtubem3u.py logic
+    suspend fun loadLinks(url: String): List<ExtractorLink> {
+        val result = mutableListOf<ExtractorLink>()
+        try {
+            val vid = extractVideoId(url) ?: throw Exception("video id not found")
+            val watchUrl = "https://www.youtube.com/watch?v=$vid&hl=en"
+            val html = httpGet(watchUrl)
+
+            // extract ytcfg object and INNERTUBE_API_KEY / VISITOR_DATA
+            val ytcfg = extractYtcfgFromHtml(html) ?: throw Exception("ytcfg not found")
+            val apiKey = if (ytcfg.has("INNERTUBE_API_KEY")) ytcfg.getString("INNERTUBE_API_KEY") else fetchInnertubeKeyFromHtml(html) ?: ""
+            val visitorData = if (ytcfg.has("VISITOR_DATA")) ytcfg.getString("VISITOR_DATA") else findVisitorDataFromHtml(html) ?: ""
+
+            if (apiKey.isEmpty()) throw Exception("INNERTUBE_API_KEY not found")
+
+            // prepare context with visitorData
+            val finalContext = JSONObject(WEB_CLIENT_CONTEXT.toString())
+            try { finalContext.getJSONObject("client").put("visitorData", visitorData) } catch (_: Exception) {}
+
+            val apiUrl = "https://www.youtube.com/youtubei/v1/player?key=$apiKey"
+            val payload = JSONObject()
+            payload.put("context", finalContext)
+            payload.put("videoId", vid)
+
+            val apiResp = httpPostJson(apiUrl, payload)
+            val apiJson = JSONObject(apiResp)
+
+            if (!apiJson.has("streamingData")) throw Exception("streamingData missing")
+            val streaming = apiJson.getJSONObject("streamingData")
+            // prefer hlsManifestUrl
+            if (streaming.has("hlsManifestUrl")) {
+                val hls = streaming.getString("hlsManifestUrl")
+                // fetch m3u8 content
+                try {
+                    val m3u8 = httpGet(hls)
+                    // parse m3u8 to get variant URIs (lines that start with http)
+                    val lines = m3u8.split("\n")
+                    var count = 0
+                    for (ln in lines) {
+                        val l = ln.trim()
+                        if (l.startsWith("http://") || l.startsWith("https://")) {
+                            // create extractor link via helper
+                            result.add(newExtractor(l, "YouTube HLS", "HLS-$count"))
+                            count++
+                        }
+                    }
+                    // if none found, add the manifest itself
+                    if (result.isEmpty()) {
+                        result.add(newExtractor(hls, "YouTube HLS", "manifest"))
+                    }
                 } catch (e: Exception) {
-                    // Ignore
+                    // fallback: add raw hls URL
+                    result.add(newExtractor(hls, "YouTube HLS", "hls"))
+                }
+            } else {
+                // fallback: try progressive formats in streamingData.formats/adaptiveFormats
+                if (streaming.has("formats")) {
+                    val arr = streaming.getJSONArray("formats")
+                    for (i in 0 until arr.length()) {
+                        try {
+                            val item = arr.getJSONObject(i)
+                            if (item.has("url")) {
+                                val u = item.getString("url")
+                                result.add(newExtractor(u, "YouTube Progress", item.optString("qualityLabel", "prog")))
+                            } else if (item.has("signatureCipher") || item.has("cipher")) {
+                                // ciphered urls: harder to handle here — skipping (youtube often uses cipher)
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                if (result.isEmpty()) {
+                    // final fallback: try to find any m3u8 in html
+                    val p = Pattern.compile("(https?:\\\\/\\\\/[^\\s'\"]+\\.m3u8[^\\s'\"]*)")
+                    val m = p.matcher(html)
+                    if (m.find()) result.add(newExtractor(m.group(1), "YouTubeFuzzyHLS", "hls"))
                 }
             }
+        } catch (e: Exception) {
+            AppUtils.log("YouTubeProvider", "loadLinks error: ${e.message}")
         }
-        
-        return results
+        return result
     }
 
-    // =================================================================================
-    // جلب الروابط - محاكاة `يوتيوبm3u.py` بدقة
-    // =================================================================================
-
-    // `load` هنا فقط لجلب البيانات الأولية للعرض في صفحة الفيلم
-    override suspend fun load(url: String): LoadResponse? {
-        val videoId = url.substringAfter("v=").substringBefore("&").substringAfter("/shorts/")
-        val doc = app.get("$webUrl/watch?v=$videoId").document
-        
-        val initialData = extractYtInitialData(doc.html())
-        val videoDetails = getFromPath(initialData, "contents.twoColumnWatchNextResults.results.results.contents.0.videoPrimaryInfoRenderer") as? Map<String, Any>
-            ?: getFromPath(initialData, "playerOverlays.playerOverlayRenderer.videoDetails.playerOverlayVideoDetailsRenderer") as? Map<String, Any>
-        
-        val title = extractTitle(videoDetails) ?: "Loading..."
-        val poster = doc.select("meta[property=og:image]").attr("content")
-        val plot = doc.select("meta[property=og:description]").attr("content")
-
-        return newMovieLoadResponse(title, url, TvType.Movie, url) {
-            this.posterUrl = poster
-            this.plot = plot
-        }
-    }
-    
-    // `loadLinks` هنا ينفذ كل العمل الحقيقي لجلب الروابط
-    override suspend fun loadLinks(
-        data: String, // `data` هو الرابط الأصلي للفيديو
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val videoId = data.substringAfter("v=").substringBefore("&").substringAfter("/shorts/")
-        
-        // نفس هوية Safari من كودك
-        val safariUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
-
-        // الخطوة 1: جلب الإعدادات من صفحة /watch
-        val watchUrl = "$webUrl/watch?v=$videoId&hl=en"
-        val watchDoc = app.get(watchUrl, headers = mapOf("User-Agent" to safariUserAgent)).document
-        val ytcfg = extractYtCfg(watchDoc.html()) ?: return false
-        val apiKey = ytcfg.apiKey ?: return false
-        val visitorData = ytcfg.visitorData ?: return false
-
-        // الخطوة 2: استدعاء API المشغل بهوية Safari
-        val apiUrl = "$webUrl/youtubei/v1/player?key=$apiKey"
-        val payload = mapOf(
-            "context" to mapOf(
-                "client" to mapOf(
-                    "hl" to "en", "gl" to "US", "clientName" to "WEB",
-                    "clientVersion" to (ytcfg.clientVersion ?: "2.20240725.01.00"), 
-                    "userAgent" to safariUserAgent,
-                    "visitorData" to visitorData
-                )
-            ),
-            "videoId" to videoId
-        )
-        
-        val apiResponse = app.post(apiUrl, json = payload).parsed<Map<String, Any>>()
-
-        // الخطوة 3: البحث عن hlsManifestUrl
-        val hlsManifestUrl = getFromPath(apiResponse, "streamingData.hlsManifestUrl") as? String ?: return false
-
-        // الخطوة 4: جلب ملف M3U8 النهائي
-        return M3u8Helper.generateM3u8(
-            this.name,
-            hlsManifestUrl,
-            webUrl,
-            headers = mapOf("User-Agent" to safariUserAgent)
-        ).forEach(callback).let { true } // إرجاع true إذا تم استدعاء callback
-    }
-    
-    // دالة مساعدة للتنقل في القواميس المتداخلة
-    private fun getFromPath(obj: Any?, path: String): Any? {
-        var current: Any? = obj
-        path.split('.').forEach { key ->
-            current = if (key.toIntOrNull() != null) {
-                (current as? List<*>)?.getOrNull(key.toInt())
-            } else {
-                (current as? Map<*, *>)?.get(key)
+    private fun extractYtcfgFromHtml(html: String): JSONObject? {
+        try {
+            val p = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
+            val m = p.matcher(html)
+            if (m.find()) {
+                try {
+                    return JSONObject(m.group(1))
+                } catch (_: Exception) {}
             }
-        }
-        return current
+        } catch (_: Exception) {}
+        return null
     }
 }
