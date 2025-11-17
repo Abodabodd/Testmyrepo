@@ -1,341 +1,315 @@
-// YouTubeProvider.kt
-// مصمم ليعمل كـ CloudStream provider ويطابق منطق سكربتات Python الثلاثة:
-// - بحث (m.youtube.com + continuation)
-// - صفحة الفيديو (ytcfg -> INNERTUBE_API_KEY, VISITOR_DATA)
-// - استدعاء youtubei/v1/player للحصول على hlsManifestUrl ثم استخراج روابط M3U8
-//
-// راجع: phisher98 cloudstream repo style (used for structure). 3
+package com.arabseed
 
-package main
-
+import android.util.Log
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.*
+import org.jsoup.Jsoup
+import com.lagradost.cloudstream3.network.CloudflareKiller
+import com.lagradost.cloudstream3.utils.Qualities
+import kotlinx.serialization.Serializable
 import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.models.VideoInfo
-import com.lagradost.cloudstream3.models.ExtractorLink
-import com.lagradost.cloudstream3.models.Qualities
-import com.lagradost.cloudstream3.utils.AppUtils
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import org.json.JSONArray
+import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.utils.ExtractorLink
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.regex.Pattern
 
 class YouTubeProvider : MainAPI() {
-    override val name = "YouTube (m)"
-    override val mainUrl = "https://www.youtube.com"
-    override val lang = "ar"
+    override var mainUrl = "https://www.youtube.com"
+    override var name = "YouTube (m)"
+    override var lang = "ar"
+    override val hasMainPage = false
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
 
-    private val client = OkHttpClient()
-
-    // Safari-like client context (matches what many implementations use)
-    private val WEB_CLIENT_CONTEXT = JSONObject().apply {
-        put("client", JSONObject().apply {
-            put("hl", "en")
-            put("gl", "US")
-            put("clientName", "WEB")
-            put("clientVersion", "2.20240725.01.00")
-            put("userAgent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15")
-        })
-        put("user", JSONObject())
-        put("request", JSONObject())
+    private fun String.toAbsolute(): String {
+        if (this.isBlank()) return ""
+        return when {
+            this.startsWith("http") -> this
+            this.startsWith("//") -> "https:$this"
+            else -> mainUrl.trimEnd('/') + this
+        }
     }
 
-    // ---------- HTTP helpers ----------
-    private fun httpGet(url: String, extraHeaders: Map<String, String> = emptyMap()): String {
-        val builder = Request.Builder().url(url)
-            .header("User-Agent", WEB_CLIENT_CONTEXT.getJSONObject("client").getString("userAgent"))
-            .header("Accept-Language", "en-US,en;q=0.5")
-        extraHeaders.forEach { (k, v) -> builder.header(k, v) }
-        val resp = client.newCall(builder.build()).execute()
-        if (!resp.isSuccessful) throw Exception("HTTP ${resp.code} for $url")
-        return resp.body?.string() ?: ""
+    // ---------------------------- Helpers ----------------------------
+    private fun newExtractor(url: String, title: String = "YouTube", qualityLabel: String = "HLS"): ExtractorLink {
+        // This helper guarantees a consistent ExtractorLink creation
+        // If your project expects a different constructor signature, adjust here.
+        return ExtractorLink(url, "$title - $qualityLabel", "m3u8")
     }
 
-    private fun httpPostJson(url: String, json: JSONObject, extraHeaders: Map<String, String> = emptyMap()): String {
-        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
-        val body = json.toString().toRequestBody(mediaType)
-        val builder = Request.Builder().url(url)
-            .post(body)
-            .header("User-Agent", WEB_CLIENT_CONTEXT.getJSONObject("client").getString("userAgent"))
-            .header("Accept-Language", "en-US,en;q=0.5")
-            .header("Content-Type", "application/json")
-        extraHeaders.forEach { (k, v) -> builder.header(k, v) }
-        val resp = client.newCall(builder.build()).execute()
-        if (!resp.isSuccessful) throw Exception("HTTP ${resp.code} for $url")
-        return resp.body?.string() ?: ""
+    private fun extractJsonVar(html: String, varName: String): String? {
+        // try common patterns: var ytInitialData = {...}; window["ytInitialData"] = {...};
+        val p1 = Pattern.compile("$varName\\s*=\\s*(\\{.+?\\})\\s*;", Pattern.DOTALL)
+        val m1 = p1.matcher(html)
+        if (m1.find()) return m1.group(1)
+        // alternative: "ytcfg.set({...})"
+        val p2 = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
+        val m2 = p2.matcher(html)
+        if (m2.find()) return m2.group(1)
+        // alternative for INNERTUBE_API_KEY as plain string
+        val p3 = Pattern.compile("\"INNERTUBE_API_KEY\"\\s*:\\s*\"([^\"]+)\"")
+        val m3 = p3.matcher(html)
+        if (m3.find()) return JSONObject().put("INNERTUBE_API_KEY", m3.group(1)).toString()
+        return null
     }
 
-    // ---------- small utilities ----------
-    private fun extractVideoId(url: String): String? {
-        val patterns = listOf(
-            "(?:v=|/|embed/|shorts/|v%3D|be/)([a-zA-Z0-9_-]{11})"
-        )
-        for (p in patterns) {
-            val m = Pattern.compile(p).matcher(url)
+    private fun fetchInnertubeKey(html: String): String? {
+        // attempt multiple ways
+        try {
+            val p = Pattern.compile("INNERTUBE_API_KEY\"\\s*:\\s*\"([^\"]+)\"")
+            val m = p.matcher(html)
             if (m.find()) return m.group(1)
-        }
-        return null
-    }
-
-    private fun extractJsonVariable(html: String, varName: String): JSONObject? {
-        // common forms: var ytInitialData = {...}; or window["ytInitialData"] = {...};
-        val p = Pattern.compile("$varName\\s*=\\s*(\\{.+?\\})\\s*;", Pattern.DOTALL)
-        val m = p.matcher(html)
-        if (m.find()) {
-            try {
-                return JSONObject(m.group(1))
-            } catch (_: Exception) {}
-        }
-        // try ytcfg.set({...})
-        val p2 = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
-        val m2 = p2.matcher(html)
-        if (m2.find()) {
-            try {
-                return JSONObject(m2.group(1))
-            } catch (_: Exception) {}
-        }
-        return null
-    }
-
-    private fun fetchInnertubeKeyFromHtml(html: String): String? {
-        val p = Pattern.compile("INNERTUBE_API_KEY\"\\s*:\\s*\"([^\"]+)\"")
-        val m = p.matcher(html)
-        if (m.find()) return m.group(1)
-        // alternative: ytcfg set object
-        val p2 = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
-        val m2 = p2.matcher(html)
-        if (m2.find()) {
-            try {
-                val j = JSONObject(m2.group(1))
+            val ytcfg = extractJsonVar(html, "ytcfg.set")
+            if (ytcfg != null) {
+                val j = JSONObject(ytcfg)
                 if (j.has("INNERTUBE_API_KEY")) return j.getString("INNERTUBE_API_KEY")
-            } catch (_: Exception) {}
-        }
+            }
+        } catch (_: Exception) {}
         return null
     }
 
-    private fun findVisitorDataFromHtml(html: String): String? {
+    private fun findVisitorData(html: String): String? {
         val p = Pattern.compile("VISITOR_DATA\"\\s*:\\s*\"([^\"]+)\"")
         val m = p.matcher(html)
         if (m.find()) return m.group(1)
         return null
     }
 
-    // ---------- newExtractor helper (guarantee presence) ----------
-    // Many repos call helper functions named newExtractor — to avoid missing-call problems
-    // we define an internal helper that returns ExtractorLink instances in a standard way.
-    private fun newExtractor(url: String, name: String = "YouTube HLS", qualityLabel: String = "HLS"): ExtractorLink {
-        // ExtractorLink(url, name, "m3u8") is the common constructor — adapt if your CloudStream version differs.
-        return ExtractorLink(url, "$name - $qualityLabel", "m3u8")
-    }
-
-    // ---------- Search (m.youtube.com results + continuations) ----------
-    override suspend fun search(query: String): List<com.lagradost.cloudstream3.model.SearchResponse> {
-        val out = mutableListOf<com.lagradost.cloudstream3.model.SearchResponse>()
-        try {
-            val q = URLEncoder.encode(query, "utf-8")
-            val url = "https://m.youtube.com/results?sp=mAEA&search_query=$q"
-            val html = httpGet(url)
-
-            // extract ytInitialData (search results)
-            val initial = extractJsonFromHtmlTry(html, "ytInitialData")
-            if (initial != null) {
-                parseSearchJson(initial, out)
-                // continuation tokens handling
-                var cont = findContinuationToken(initial)
-                var pages = 0
-                val apiKey = fetchInnertubeKeyFromHtml(html) ?: ""
-                while (!cont.isNullOrEmpty() && pages < 8) {
-                    try {
-                        val contUrl = "https://www.youtube.com/youtubei/v1/search?key=$apiKey"
-                        val payload = JSONObject()
-                        payload.put("context", WEB_CLIENT_CONTEXT)
-                        payload.put("continuation", cont)
-                        val resp = httpPostJson(contUrl, payload)
-                        val j = JSONObject(resp)
-                        parseSearchJson(j, out)
-                        cont = findContinuationToken(j)
-                    } catch (e: Exception) {
-                        break
-                    }
-                    pages++
-                }
-            }
-        } catch (e: Exception) {
-            AppUtils.log("YouTubeProvider", "search error: ${e.message}")
-        }
-        return out
-    }
-
-    // attempt to extract JSON variable by several common keys
-    private fun extractJsonFromHtmlTry(html: String, key: String): JSONObject? {
-        // try direct patterns
-        try {
-            val p = Pattern.compile("$key\\s*=\\s*(\\{.+?\\})\\s*;", Pattern.DOTALL)
-            val m = p.matcher(html)
-            if (m.find()) return JSONObject(m.group(1))
-        } catch (_: Exception) {}
-        // try window["ytInitialData"] variants
-        try {
-            val p2 = Pattern.compile("\"$key\"\\s*:\\s*(\\{.+?\\})\\s*[,}]?", Pattern.DOTALL)
-            val m2 = p2.matcher(html)
-            if (m2.find()) return JSONObject(m2.group(1))
-        } catch (_: Exception) {}
-        return null
-    }
-
-    private fun parseSearchJson(jobj: JSONObject, out: MutableList<com.lagradost.cloudstream3.model.SearchResponse>) {
-        try {
-            // search for videoRenderer nodes anywhere
-            val items = AppUtils.searchJson(jobj, arrayOf("videoRenderer", "compactVideoRenderer", "gridVideoRenderer"))
-            for (it in items) {
-                try {
-                    val id = AppUtils.parseJsonValue(it, arrayOf("videoId", "id")) ?: continue
-                    val title = AppUtils.parseJsonValue(it, arrayOf("title", "runs", "0", "text")) ?:
-                                AppUtils.parseJsonValue(it, arrayOf("title", "simpleText")) ?: id
-                    val thumb = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
-                    val link = "https://www.youtube.com/watch?v=$id"
-                    out.add(com.lagradost.cloudstream3.model.SearchResponse(title, link, thumb))
-                } catch (_: Exception) {}
-            }
-        } catch (e: Exception) {
-            AppUtils.log("YouTubeProvider", "parseSearchJson: ${e.message}")
-        }
-    }
-
-    private fun findContinuationToken(j: Any): String? {
-        try {
-            val root = when (j) {
-                is String -> JSONObject(j)
-                is JSONObject -> j
-                else -> JSONObject(j.toString())
-            }
-            val nodes = AppUtils.searchJson(root, arrayOf("token", "continuation", "continuationEndpoint"))
-            if (nodes.isNotEmpty()) {
-                // try token field
-                val t = AppUtils.parseJsonValue(nodes[0], arrayOf("token", "continuation"))
-                if (!t.isNullOrEmpty()) return t
-            }
-        } catch (_: Exception) {}
-        return null
-    }
-
-    // ---------- Load video info & streams ----------
-    override suspend fun load(url: String): VideoInfo? {
+    // ---------------------------- Search ----------------------------
+    override suspend fun search(query: String): List<SearchResponse> {
+        // Implementation: use m.youtube.com simple search page; fallback to youtube search page
+        val q = URLEncoder.encode(query.trim(), "utf-8")
+        val url = "https://m.youtube.com/results?sp=mAEA&search_query=$q"
+        Log.i(name, "search: $query -> $url")
         return try {
-            val links = loadLinks(url)
-            if (links.isEmpty()) null
-            else {
-                val vi = VideoInfo()
-                vi.name = links.firstOrNull()?.name ?: "YouTube Video"
-                // build streams mapping: use quality names as keys
-                val streamsMap = mutableMapOf<String, String>()
-                links.forEachIndexed { idx, l ->
-                    streamsMap["${l.quality ?: "HLS"}"] = l.url
+            val resp = app.get(url)
+            val html = resp.text
+            // try to extract initialData JSON and parse video renderers
+            val ytJsonStr = extractJsonVar(html, "ytInitialData")
+            val out = mutableListOf<SearchResponse>()
+
+            if (ytJsonStr != null) {
+                try {
+                    val json = JSONObject(ytJsonStr)
+                    val nodes = AppUtils.searchJson(json, arrayOf("videoRenderer", "compactVideoRenderer", "gridVideoRenderer"))
+                    for (n in nodes) {
+                        try {
+                            val vid = AppUtils.parseJsonValue(n, arrayOf("videoId", "id")) ?: continue
+                            val title = AppUtils.parseJsonValue(n, arrayOf("title", "runs", "0", "text")) ?:
+                                        AppUtils.parseJsonValue(n, arrayOf("title", "simpleText")) ?: vid
+                            val thumb = "https://i.ytimg.com/vi/$vid/mqdefault.jpg"
+                            val link = "https://www.youtube.com/watch?v=$vid"
+                            out.add(newMovieSearchResponse(title, link, TvType.Movie) { this.posterUrl = thumb })
+                        } catch (_: Exception) {}
+                    }
+                } catch (e: Exception) {
+                    Log.w(name, "search-json-parse", e)
                 }
-                vi.streams = streamsMap
-                vi
+            } else {
+                // fallback: attempt to parse search result links from mobile HTML using Jsoup
+                val doc = Jsoup.parse(html)
+                doc.select("a").forEach { a ->
+                    val href = a.attr("href")
+                    if (href.contains("/watch")) {
+                        val vid = Regex("""v=([a-zA-Z0-9_-]{11})""").find(href)?.groupValues?.get(1)
+                        if (vid != null) {
+                            val title = a.attr("title").ifBlank { a.text() }.ifBlank { vid }
+                            val thumb = "https://i.ytimg.com/vi/$vid/mqdefault.jpg"
+                            val link = "https://www.youtube.com/watch?v=$vid"
+                            out.add(newMovieSearchResponse(title, link, TvType.Movie) { this.posterUrl = thumb })
+                        }
+                    }
+                }
             }
+            out
         } catch (e: Exception) {
-            AppUtils.log("YouTubeProvider", "load: ${e.message}")
-            null
+            Log.e(name, "search error", e)
+            emptyList()
         }
     }
 
-    // core: replicate youtubem3u.py logic
-    suspend fun loadLinks(url: String): List<ExtractorLink> {
-        val result = mutableListOf<ExtractorLink>()
+    // ---------------------------- Load (page -> episodes / movie) ----------------------------
+    override suspend fun load(url: String): LoadResponse {
+        Log.i(name, "load: $url")
+        return try {
+            val resp = app.get(url)
+            val doc = resp.document
+            val title = doc.selectFirst("title")?.text()?.trim() ?: "YouTube Video"
+            val synopsis = doc.selectFirst("meta[name=description]")?.attr("content") ?: ""
+            // For our provider we can't produce episodes from YouTube; we will return a Movie load response
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.plot = synopsis
+                // poster: try to find video id in url
+                val vid = Regex("""v=([a-zA-Z0-9_-]{11})""").find(url)?.groupValues?.get(1)
+                if (vid != null) this.posterUrl = "https://i.ytimg.com/vi/$vid/maxresdefault.jpg"
+            }
+        } catch (e: Exception) {
+            Log.e(name, "load error", e)
+            newMovieLoadResponse("خطأ", url, TvType.Movie, url)
+        }
+    }
+
+    @Serializable
+    data class PlayerResponse(val streamingData: Map<String, Any>?)
+
+    // ---------------------------- loadLinks (core) ----------------------------
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        Log.i(name, "loadLinks initiated for: $data")
+
         try {
-            val vid = extractVideoId(url) ?: throw Exception("video id not found")
+            val pageResp = app.get(data)
+            val pageHtml = pageResp.text
+            // extract video id
+            val vid = Regex("""v=([a-zA-Z0-9_-]{11})""").find(data)?.groupValues?.get(1)
+                ?: Regex("""/shorts/([a-zA-Z0-9_-]{11})""").find(data)?.groupValues?.get(1)
+                ?: run {
+                    // try find from meta
+                    Regex("""/vi/([a-zA-Z0-9_-]{11})/""").find(pageHtml)?.groupValues?.get(1)
+                }
+
+            if (vid == null) {
+                Log.e(name, "video id not found for $data")
+                return false
+            }
+
             val watchUrl = "https://www.youtube.com/watch?v=$vid&hl=en"
-            val html = httpGet(watchUrl)
+            Log.d(name, "watchUrl: $watchUrl")
 
-            // extract ytcfg object and INNERTUBE_API_KEY / VISITOR_DATA
-            val ytcfg = extractYtcfgFromHtml(html) ?: throw Exception("ytcfg not found")
-            val apiKey = if (ytcfg.has("INNERTUBE_API_KEY")) ytcfg.getString("INNERTUBE_API_KEY") else fetchInnertubeKeyFromHtml(html) ?: ""
-            val visitorData = if (ytcfg.has("VISITOR_DATA")) ytcfg.getString("VISITOR_DATA") else findVisitorDataFromHtml(html) ?: ""
+            // fetch watch page HTML (to get ytcfg / INNERTUBE_API_KEY / VISITOR_DATA)
+            val watchResp = app.get(watchUrl, referer = data)
+            val watchHtml = watchResp.text
 
-            if (apiKey.isEmpty()) throw Exception("INNERTUBE_API_KEY not found")
+            val apiKey = fetchInnertubeKey(watchHtml) ?: run {
+                Log.e(name, "INNERTUBE_API_KEY not found")
+                return false
+            }
+            val visitor = findVisitorData(watchHtml) ?: ""
 
-            // prepare context with visitorData
-            val finalContext = JSONObject(WEB_CLIENT_CONTEXT.toString())
-            try { finalContext.getJSONObject("client").put("visitorData", visitorData) } catch (_: Exception) {}
+            Log.d(name, "found apiKey length=${apiKey.length}, visitorData=${visitor.isNotBlank()}")
 
-            val apiUrl = "https://www.youtube.com/youtubei/v1/player?key=$apiKey"
+            // construct payload JSON
+            val context = JSONObject()
+            val client = JSONObject()
+            client.put("hl", "en")
+            client.put("gl", "US")
+            client.put("clientName", "WEB")
+            client.put("clientVersion", "2.20240725.01.00")
+            if (visitor.isNotBlank()) client.put("visitorData", visitor)
+            context.put("client", client)
             val payload = JSONObject()
-            payload.put("context", finalContext)
+            payload.put("context", context)
             payload.put("videoId", vid)
 
-            val apiResp = httpPostJson(apiUrl, payload)
-            val apiJson = JSONObject(apiResp)
+            val apiUrl = "https://www.youtube.com/youtubei/v1/player?key=$apiKey"
+            Log.d(name, "player API URL: $apiUrl")
 
-            if (!apiJson.has("streamingData")) throw Exception("streamingData missing")
+            val apiResp = try {
+                // app.post with JSON body: this call returns Response, use .text
+                app.post(apiUrl, data = payload.toString(), headers = mapOf("Content-Type" to "application/json"), referer = watchUrl).text
+            } catch (e: Exception) {
+                Log.e(name, "player API request failed", e)
+                return false
+            }
+
+            // parse API response
+            val apiJson = JSONObject(apiResp)
+            if (!apiJson.has("streamingData")) {
+                Log.e(name, "player API: streamingData not found")
+                // sometimes YouTube blocks; fallback to attempt to find m3u8 in watchHtml
+                val m = Regex("(https?://[^\\s'\"<>]+\\.m3u8[^\\s'\"<>]*)").find(watchHtml)
+                if (m != null) {
+                    val m3u8 = m.groupValues[1]
+                    Log.d(name, "fallback found m3u8: $m3u8")
+                    callback(newExtractor(m3u8, "YouTube", "hls"))
+                    return true
+                }
+                return false
+            }
+
             val streaming = apiJson.getJSONObject("streamingData")
-            // prefer hlsManifestUrl
+            // prioritize hlsManifestUrl
             if (streaming.has("hlsManifestUrl")) {
                 val hls = streaming.getString("hlsManifestUrl")
-                // fetch m3u8 content
+                Log.i(name, "Found hlsManifestUrl: $hls")
                 try {
-                    val m3u8 = httpGet(hls)
-                    // parse m3u8 to get variant URIs (lines that start with http)
-                    val lines = m3u8.split("\n")
+                    val m3u8Text = app.get(hls).text
+                    // parse m3u8 lines for variant URIs
+                    val lines = m3u8Text.split("\n")
                     var count = 0
                     for (ln in lines) {
                         val l = ln.trim()
                         if (l.startsWith("http://") || l.startsWith("https://")) {
-                            // create extractor link via helper
-                            result.add(newExtractor(l, "YouTube HLS", "HLS-$count"))
+                            // call callback with each variant
+                            callback(newExtractor(l, "YouTube", "HLS-$count"))
                             count++
                         }
                     }
-                    // if none found, add the manifest itself
-                    if (result.isEmpty()) {
-                        result.add(newExtractor(hls, "YouTube HLS", "manifest"))
+                    if (count == 0) {
+                        // if no variant lines, return the manifest itself
+                        callback(newExtractor(hls, "YouTube", "manifest"))
                     }
+                    return true
                 } catch (e: Exception) {
-                    // fallback: add raw hls URL
-                    result.add(newExtractor(hls, "YouTube HLS", "hls"))
+                    Log.e(name, "Failed to fetch/parse m3u8, fallback to manifest", e)
+                    callback(newExtractor(hls, "YouTube", "hls"))
+                    return true
                 }
             } else {
-                // fallback: try progressive formats in streamingData.formats/adaptiveFormats
-                if (streaming.has("formats")) {
-                    val arr = streaming.getJSONArray("formats")
-                    for (i in 0 until arr.length()) {
-                        try {
-                            val item = arr.getJSONObject(i)
-                            if (item.has("url")) {
-                                val u = item.getString("url")
-                                result.add(newExtractor(u, "YouTube Progress", item.optString("qualityLabel", "prog")))
-                            } else if (item.has("signatureCipher") || item.has("cipher")) {
-                                // ciphered urls: harder to handle here — skipping (youtube often uses cipher)
-                            }
-                        } catch (_: Exception) {}
-                    }
-                }
-                if (result.isEmpty()) {
-                    // final fallback: try to find any m3u8 in html
-                    val p = Pattern.compile("(https?:\\\\/\\\\/[^\\s'\"]+\\.m3u8[^\\s'\"]*)")
-                    val m = p.matcher(html)
-                    if (m.find()) result.add(newExtractor(m.group(1), "YouTubeFuzzyHLS", "hls"))
-                }
-            }
-        } catch (e: Exception) {
-            AppUtils.log("YouTubeProvider", "loadLinks error: ${e.message}")
-        }
-        return result
-    }
-
-    private fun extractYtcfgFromHtml(html: String): JSONObject? {
-        try {
-            val p = Pattern.compile("ytcfg\\.set\\((\\{.+?\\})\\)", Pattern.DOTALL)
-            val m = p.matcher(html)
-            if (m.find()) {
+                // fallback: look into formats/adaptiveFormats for direct URLs
                 try {
-                    return JSONObject(m.group(1))
-                } catch (_: Exception) {}
+                    val formats = mutableListOf<String>()
+                    if (streaming.has("formats")) {
+                        val arr = streaming.getJSONArray("formats")
+                        for (i in 0 until arr.length()) {
+                            val it = arr.getJSONObject(i)
+                            if (it.has("url")) {
+                                formats.add(it.getString("url"))
+                            } else if (it.has("signatureCipher") || it.has("cipher")) {
+                                // ciphered url -> complicated to decipher here; skip
+                            }
+                        }
+                    }
+                    if (streaming.has("adaptiveFormats")) {
+                        val arr2 = streaming.getJSONArray("adaptiveFormats")
+                        for (i in 0 until arr2.length()) {
+                            val it = arr2.getJSONObject(i)
+                            if (it.has("url")) formats.add(it.getString("url"))
+                        }
+                    }
+                    if (formats.isNotEmpty()) {
+                        formats.distinct().forEachIndexed { idx, u -> callback(newExtractor(u, "YouTube", "prog-$idx")) }
+                        return true
+                    }
+                } catch (e: Exception) {
+                    Log.w(name, "formats parsing failed", e)
+                }
             }
-        } catch (_: Exception) {}
-        return null
+
+            // final fallback: attempt to find an iframe or embed and use loadExtractor
+            val iframeMatch = Regex("<iframe[^>]+src=[\"']([^\"']+)[\"']").find(watchHtml)
+            if (iframeMatch != null) {
+                val iframeUrl = iframeMatch.groupValues[1]
+                Log.i(name, "Found iframe fallback: $iframeUrl -> will use loadExtractor")
+                // use loadExtractor helper (present in many providers) to handle common iframe-hosts
+                try {
+                    loadExtractor(iframeUrl, watchUrl, subtitleCallback, callback)
+                    return true
+                } catch (e: Exception) {
+                    Log.e(name, "loadExtractor failed", e)
+                }
+            }
+
+            Log.w(name, "No playable links found for $data")
+            return false
+
+        } catch (e: Exception) {
+            Log.e(name, "loadLinks top-level error", e)
+            return false
+        }
     }
 }
