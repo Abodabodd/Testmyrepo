@@ -1,226 +1,247 @@
-import re
-import json
-import time
-import hashlib
 import requests
+import json
+import re
+import time
+import sys # سنستخدمها لتحديث السطر
 
-# ------------------------------------------------------------------------------
-# ضع قيم كوكيزك هنا (استبدل "..." بالقيمة الكاملة لكل كوكي كما في المتصفح)
-# ------------------------------------------------------------------------------
-
-COOKIES = {
-    # أمثلة على أسماء كوكيز مهمة ليوتيوب — استبدل القيم بالقيم الحقيقية لديك
-    "SAPISID": "nUW-CCOinWiuvSLj/AWhiS5lC7jJJ7fKvT",
-    "APISID": "G9a7RJIS2wdzrITs/AGbzLIXyu2u0ehmXk",
-    "HSID": "AOdGGvoND51RUO80o",
-    "SSID": "ANrvEajfCaK4PVV5S",
-    "SID": "g.a0003gg5DShNlyHCn_2XpWBm-LsCSqFAcmtP37y05z0jO49Nr9g4-ds3e3bVzLtDZSRFJEw9VQACgYKAfcSARASFQHGX2MitIMgJhCNDBBKbtV6IdXJIRoVAUF8yKqCQUS_ztfqc4khGU73Lem20076",
-
-    # احذف أو أضف أي كوكيز آخر حسب حاجتك
+url = "https://www.YouTube.com/@MrBeast/videos"
+# ملاحظة: قد تحتاج إلى تحديث هذا الكوكي "VISITOR_INFO1_LIVE" يدوياً من خلال فحص طلبات الشبكة في المتصفح إذا توقف السكريبت عن العمل.
+# وهو ضروري أحياناً للحصول على بيانات "visitorData" الصحيحة.
+cookies = {"VISITOR_INFO1_LIVE": "fzYjM8PCwjw"} 
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
+SLEEP_BETWEEN = 0.5
+PAGES_TO_FETCH = 6 # الحد الأقصى للصفحات المطلوب جلبها
 
-# ------------------------------------------------------------------------------
-# إعداد العميل (يمكن تغييره إلى ANDROID/TVHTML5 إن رغبت)
-# ------------------------------------------------------------------------------
-WEB_SAFARI_CONTEXT = {
-    "client": {
-        "hl": "en",
-        "gl": "US",
-        "clientName": "WEB",
-        "clientVersion": "2.20240725.01.00",
-        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-    },
-    "user": {},
-    "request": {}
-}
+session = requests.Session()
+session.headers.update(HEADERS)
 
-# أصل الموقع المطلوب عند توليد SAPISIDHASH
-ORIGIN = "https://www.youtube.com"
+print("جاري طلب الصفحة الرئيسية...")
 
-class ExtractorError(Exception):
-    pass
+try:
+    response = session.get(url, cookies=cookies, timeout=25)
+    response.raise_for_status()
+except requests.exceptions.RequestException as e:
+    print(f"حدث خطأ أثناء الاتصال بالشبكة: {e}")
+    exit()
 
-def extract_video_id(url):
-    patterns = [r'(?:v=|\/|embed\/|shorts\/|v%3D|be\/)([a-zA-Z0-9_-]{11})']
-    for p in patterns:
-        if match := re.search(p, url):
-            return match.group(1)
-    raise ExtractorError("لم يتم العثور على معرف فيديو صالح.")
+sys.stdout.write("تم الاتصال بنجاح. جاري تحليل المحتوى...\n")
+sys.stdout.flush()
 
-def build_cookie_header(cookie_dict):
-    """بناء سلسلة Cookie لرأس HTTP من قاموس الكوكيز."""
-    parts = []
-    for k, v in cookie_dict.items():
-        if v is None or v == "":
-            continue
-        parts.append(f"{k}={v}")
-    return "; ".join(parts)
+match = re.search(r'var ytInitialData = ({.*?});', response.text)
+if not match:
+    sys.stdout.write("لم يتم العثور على بيانات (ytInitialData).\n")
+    sys.stdout.flush()
+    exit()
 
-def build_sapisidhash(sap_cookie_value, origin=ORIGIN):
-    """
-    توليد SAPISIDHASH كما تستخدمه google:
-    SAPISIDHASH <timestamp>_<sha1(timestamp + ' ' + SAPISID + ' ' + origin)>
-    """
-    ts = str(int(time.time()))
-    to_hash = f"{ts} {sap_cookie_value} {origin}"
-    sha1 = hashlib.sha1(to_hash.encode("utf-8")).hexdigest()
-    return f"SAPISIDHASH {ts}_{sha1}"
+try:
+    json_data = json.loads(match.group(1))
+except Exception as e:
+    sys.stdout.write(f"فشل تحويل ytInitialData إلى JSON: {e}\n")
+    sys.stdout.flush()
+    exit()
 
-# ==============================================================================
-# الدالة الرئيسية (معدلة لاستقبال كوكيز واستخدام Authorization إن أمكن)
-# ==============================================================================
-def get_hls_manifest_url(url, cookies=COOKIES):
-    session = requests.Session()
+videos_list = []
 
-    # 1) ضبط رؤوس أساسية
-    session.headers.update({
-        "User-Agent": WEB_SAFARI_CONTEXT["client"]["userAgent"],
-        "Accept-Language": "en-US,en;q=0.5",
-        # X-Requested-With / X-Origin يمكن إضافتها لاحقًا
-    })
+def process_video_item(item):
+    video_renderer = item.get('videoRenderer')
+    if not video_renderer: return False
 
-    # 2) تحميل الكوكيز إلى جلسة requests
-    #    - نضيفها إلى session.cookies وكذلك كرأس Cookie (احتياطاً)
-    clean_cookies = {k: v for k, v in cookies.items() if v and v != "..."}
-    if clean_cookies:
-        session.cookies.update(clean_cookies)
-        cookie_header = build_cookie_header(clean_cookies)
-        session.headers.update({"Cookie": cookie_header})
-        print(f"🔐 تم تحميل {len(clean_cookies)} كوكيز إلى الجلسة.")
-    else:
-        print("⚠️ لا توجد كوكيز صالحة في القاموس (تأكد من استبدال القيم).")
+    video_id = video_renderer.get('videoId')
+    title = video_renderer.get('title', {}).get('runs', [{}])[0].get('text')
+    view_count = video_renderer.get('viewCountText', {}).get('simpleText', 'N/A')
 
-    # 3) إذا كانت SAPISID موجودة فنبني Authorization header
-    sapisid_val = clean_cookies.get("SAPISID") or clean_cookies.get("SAPISID".lower())
-    if sapisid_val:
-        auth_value = build_sapisidhash(sapisid_val, origin=ORIGIN)
-        # رؤوس مطلوبة عادةً مع SAPISIDHASH
-        session.headers.update({
-            "Authorization": auth_value,
-            "Origin": ORIGIN,
-            "X-Goog-AuthUser": "0",
-            # بعض الخوادم تتطلب X-Origin بدلاً من Origin أو بالإضافة إليها
-            "X-Origin": ORIGIN
+    thumbnail_url = None
+    if 'thumbnail' in video_renderer and 'thumbnails' in video_renderer['thumbnail']:
+        thumbnails = video_renderer['thumbnail']['thumbnails']
+        if thumbnails:
+            thumbnail_url = thumbnails[-1].get('url')
+
+    if video_id and title:
+        link = f"https://www.YouTube.com/watch?v={video_id}"
+        videos_list.append({
+            'title': title, 
+            'link': link, 
+            'views': view_count, 
+            'thumbnail': thumbnail_url
         })
-        print("🔑 تم توليد رأس Authorization (SAPISIDHASH) وإضافته إلى الرؤوس.")
-    else:
-        print("⚠️ لم تُعطَ قيمة SAPISID صالحة — Authorization لن يُنشأ.")
+        return True
+    return False
 
-    # الآن نمضي في بقية خطوات استخراج ytcfg + استدعاء player
+# --- البحث عن تبويب الفيديوهات بشكل أكثر موثوقية ---
+def find_videos_tab_content(data_obj):
     try:
-        video_id = extract_video_id(url)
-        print(f"🎬 الهدف: فيديو بمعرف {video_id} (باستخدام WEB client مع كوكيز)")
-    except ExtractorError as e:
-        print(e); return
+        tabs = data_obj['contents']['twoColumnBrowseResultsRenderer']['tabs']
+        for tab in tabs:
+            # قد تحتاج لتعديل 'Videos' أو 'الفيديوهات' حسب لغة الواجهة التي يحصل عليها الكوكي
+            if 'tabRenderer' in tab and tab['tabRenderer'].get('title') in ['Videos', 'الفيديوهات']: 
+                return tab['tabRenderer']['content']
+        # إذا لم يتم العثور بالاسم، جرب الفهرس الثاني كافتراضي (كما كان في الكود الأصلي)
+        if len(tabs) > 1 and 'tabRenderer' in tabs[1]:
+             print("تحذير: لم يتم العثور على تبويب 'الفيديوهات' بالاسم، تم استخدام التبويب الثاني افتراضياً.")
+             return tabs[1]['tabRenderer']['content']
+    except (KeyError, IndexError):
+        pass
+    return None
 
-    print("\n--- [المرحلة 1: استخراج الإعدادات الديناميكية من صفحة /watch] ---")
+try:
+    video_tab_content = find_videos_tab_content(json_data)
+    if not video_tab_content:
+        raise Exception("لم يتم العثور على محتوى تبويب الفيديوهات في ytInitialData.")
+        
+    video_items_container = video_tab_content['richGridRenderer']['contents']
+
+except Exception as e: # Catch the custom exception or general parse errors
+    sys.stdout.write(f"بنية ytInitialData غير متوقعة أو مختلفة أو لم يتم العثور على تبويب الفيديوهات: {e}\n")
+    sys.stdout.flush()
+    video_items_container = []
+
+for item in video_items_container:
+    if 'richItemRenderer' in item:
+        process_video_item(item['richItemRenderer']['content'])
+
+sys.stdout.write(f"تم جلب {len(videos_list)} فيديو من الصفحة الأولى.\n")
+sys.stdout.flush()
+
+def extract_continuation_from_initial(data):
     try:
-        watch_url = f"https://www.youtube.com/watch?v={video_id}&hl=en"
-        print(f"  - تحميل HTML من: {watch_url}")
-        watch_resp = session.get(watch_url)
-        watch_resp.raise_for_status()
-        watch_html = watch_resp.text
+        video_tab_content = find_videos_tab_content(data)
+        if video_tab_content:
+            contents = video_tab_content['richGridRenderer']['contents']
+            last_item = contents[-1]
+            if 'continuationItemRenderer' in last_item:
+                return last_item['continuationItemRenderer']['continuationEndpoint']['continuationCommand']['token']
+    except (KeyError, IndexError):
+        pass
+    return None
 
-        ytcfg_match = re.search(r'ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;', watch_html)
-        if not ytcfg_match:
-            # محاولة استخراج بديلة لمسار INNERTUBE_API_KEY
-            alt_key = re.search(r'INNERTUBE_API_KEY\"\s*:\s*\"(.+?)\"', watch_html)
-            if alt_key:
-                ytcfg_data = {"INNERTUBE_API_KEY": alt_key.group(1)}
-                visitor_data = re.search(r'"VISITOR_DATA":"(.*?)"', watch_html)
-                ytcfg_data["VISITOR_DATA"] = visitor_data.group(1) if visitor_data else ""
-            else:
-                raise ExtractorError("لم يتم العثور على 'ytcfg'.")
-        else:
-            ytcfg_data = json.loads(ytcfg_match.group(1))
+def find_innertube_key(html_text, key):
+    m = re.search(rf'"{re.escape(key)}"\s*:\s*"([^"]+)"', html_text)
+    if m: return m.group(1)
+    return None
 
-        dynamic_api_key = ytcfg_data.get("INNERTUBE_API_KEY")
-        if not dynamic_api_key:
-            raise ExtractorError("لم يتم العثور على 'INNERTUBE_API_KEY' في ytcfg.")
-        visitor_data = ytcfg_data.get("VISITOR_DATA", "")
-        print("  - ✅ تم استخراج مفتاح API وبصمة الزائر (VISITOR_DATA) بنجاح.")
+INNERTUBE_API_KEY = find_innertube_key(response.text, "INNERTUBE_API_KEY")
+INNERTUBE_CLIENT_VERSION = find_innertube_key(response.text, "INNERTUBE_CLIENT_VERSION")
+VISITOR_DATA = cookies.get("VISITOR_INFO1_LIVE")
 
-    except Exception as e:
-        print(f"  - ❌ فشل في الحصول على الإعدادات: {e}")
-        return
+if not INNERTUBE_API_KEY:
+    sys.stdout.write("تحذير: لم أجد INNERTUBE_API_KEY. قد لا تعمل طلبات الاستمرار.\n")
+    sys.stdout.flush()
+if not INNERTUBE_CLIENT_VERSION:
+    sys.stdout.write("تحذير: لم أجد INNERTUBE_CLIENT_VERSION. قد لا تعمل طلبات الاستمرار.\n")
+    sys.stdout.flush()
+if not VISITOR_DATA:
+    sys.stdout.write("تحذير: لم أجد VISITOR_DATA من الكوكيز. قد لا تعمل طلبات الاستمرار.\n")
+    sys.stdout.flush()
 
-    print("\n--- [المرحلة 2: استدعاء API المشغل `v1/player`] ---")
-    api_url = f"https://www.youtube.com/youtubei/v1/player?key={dynamic_api_key}"
 
-    # استخدام نسخة من السياق (حتى لا نعدل النسخة الأصلية عن طريق الخطأ)
-    final_context = json.loads(json.dumps(WEB_SAFARI_CONTEXT))
-    final_context["client"]["visitorData"] = visitor_data
+def fetch_continuation_page(token):
+    api_url = f"https://www.YouTube.com/youtubei/v1/browse?key={INNERTUBE_API_KEY}"
+    payload = {
+        "context": { 
+            "client": { 
+                "hl": "ar", 
+                "gl": "SA", 
+                "clientName": "WEB", 
+                "clientVersion": INNERTUBE_CLIENT_VERSION, 
+                "visitorData": VISITOR_DATA 
+            } 
+        },
+        "continuation": token
+    }
+    r = session.post(api_url, json=payload, timeout=25)
+    r.raise_for_status()
+    return r.json()
 
-    payload = {"context": final_context, "videoId": video_id}
-
+def extract_items_and_token_from_continuation(data):
     try:
-        print("  - إرسال طلب POST إلى player...")
-        response = session.post(api_url, json=payload)
-        response.raise_for_status()
-        api_response_json = response.json()
-        print("  - ✅ تم استلام استجابة JSON بنجاح.")
-    except Exception as e:
-        print(f"  - ❌ فشل طلب الـ API: {e}")
-        # اطبع بعض الرد للمساعدة في التشخيص (إن وُجد)
+        items = data['onResponseReceivedActions'][0]['appendContinuationItemsAction']['continuationItems']
+        next_token = None
+        for item in items:
+            if 'continuationItemRenderer' in item:
+                next_token = item['continuationItemRenderer']['continuationEndpoint']['continuationCommand']['token']
+                break 
+        return items, next_token
+    except (KeyError, IndexError):
+        return [], None
+
+current_token = extract_continuation_from_initial(json_data)
+if not current_token:
+    sys.stdout.write("\nلم أجد رمز استمرار (continuation) بعد الصفحة الأولى. لن يتم جلب صفحات إضافية.\n")
+    sys.stdout.flush()
+else:
+    sys.stdout.write(f"\nبدء جلب {PAGES_TO_FETCH - 1} صفحات إضافية...\n") 
+    sys.stdout.flush()
+    page_count = 1 # الصفحة الأولى تم جلبها بالفعل
+    start_time = time.time()
+
+    # --- بداية التعديل: جلب 6 صفحات ---
+    while current_token and page_count < PAGES_TO_FETCH: 
         try:
-            print("  - محتوى الخطأ (إذا وُجد):", getattr(e, "response", None) and e.response.text)
-        except Exception:
-            pass
-        return
+            page_count += 1 # نزيد عداد الصفحات للإشارة إلى الصفحة التي نقوم بمعالجتها حالياً
 
-    print("\n--- [المرحلة 3: البحث عن hlsManifestUrl] ---")
-    streaming_data = api_response_json.get("streamingData")
-    if not streaming_data:
-        print("  - ❌ لم يتم العثور على قسم 'streamingData'.")
-        # طباعة أقسام مهمة لمساعدة التشخيص
-        if "playabilityStatus" in api_response_json:
-            print("    playabilityStatus:", api_response_json.get("playabilityStatus"))
-        return
+            continuation_json = fetch_continuation_page(current_token)
+            
+            items, next_token = extract_items_and_token_from_continuation(continuation_json)
+            
+            new_videos_count = 0
+            for item in items:
+                if 'richItemRenderer' in item:
+                    if process_video_item(item['richItemRenderer']['content']):
+                        new_videos_count += 1
+            
+            elapsed_time = time.time() - start_time
+            sys.stdout.write(f"  > الوقت المنقضي: {elapsed_time:.1f} ثانية | الصفحات المكتملة: {page_count} من {PAGES_TO_FETCH} | إجمالي الفيديوهات: {len(videos_list)}\r")
+            sys.stdout.flush()
+            
+            current_token = next_token
+            
+            if not current_token:
+                sys.stdout.write("\n\nاكتمل التحميل. تم الوصول إلى آخر صفحة متاحة.\n")
+                sys.stdout.flush()
+                break # لا توجد صفحات إضافية
+            
+            time.sleep(SLEEP_BETWEEN)
 
-    hls_manifest_api_url = streaming_data.get("hlsManifestUrl")
-    if not hls_manifest_api_url:
-        print("  - ❌ الخادم لم يرسل 'hlsManifestUrl' لهذا العميل. قد يكون الفيديو لا يدعم HLS أو يتطلب عميلاً آخر.")
-        # عرض adaptiveFormats إن وجدت
-        if "adaptiveFormats" in streaming_data:
-            print("  - نقاط الوصول البديلة (adaptiveFormats) موجودة:")
-            for fmt in streaming_data.get("adaptiveFormats", []):
-                print("    -", fmt.get("mimeType"), fmt.get("url", fmt.get("signatureCipher", "<cipher>"))[:120])
-        return
+        except Exception as e:
+            sys.stdout.write(f"\nحدث خطأ أثناء جلب الصفحة الإضافية رقم {page_count}: {e}\n")
+            sys.stdout.flush()
+            break
+    
+    sys.stdout.write("\n") # سطر جديد بعد تحديث التقدم النهائي
+    sys.stdout.flush()
+    if page_count >= PAGES_TO_FETCH and current_token: 
+        sys.stdout.write(f"تم جلب {PAGES_TO_FETCH} صفحات كما هو مطلوب. لم يتم جلب المزيد من الصفحات.\n")
+        sys.stdout.flush()
+    # --- نهاية التعديل ---
 
-    print(f"  - ✅ تم العثور على رابط API بناء الـ Manifest:\n    {hls_manifest_api_url}")
-
-    print("\n--- [المرحلة 4: طلب وبناء ملف m3u8 النهائي] ---")
+def save_to_file(data, filename="mrbeast_videos.json"):
     try:
-        print(f"  - إرسال طلب GET إلى رابط الـ API...")
-        # نستخدم نفس الجلسة (بما فيها الكوكيز والرؤوس) لطلب ملف الـ m3u8
-        manifest_response = session.get(hls_manifest_api_url)
-        manifest_response.raise_for_status()
-        m3u8_content = manifest_response.text
-
-        print("  - ✅ تم استلام محتوى ملف m3u8 بنجاح!")
-        print("\n" + "="*24 + " 📜 محتوى ملف M3U8 النهائي 📜 " + "="*24)
-        print(m3u8_content[:10000])  # طباعة أول جزء لتجنب فيضان المخرجات
-
-        # استخراج الروابط من داخل ملف M3U8 كمثال
-        print("\n--- [المرحلة 5: استخراج الروابط من داخل M3U8] ---")
-        media_urls = re.findall(r'^(https?://.*)$', m3u8_content, re.MULTILINE)
-        if media_urls:
-            print(f"  - ✅ تم العثور على {len(media_urls)} رابط وسائط داخل الملف:")
-            for i, media_url in enumerate(media_urls):
-                print(f"    رابط {i+1}: {media_url[:200]}...")
-        else:
-            print("  - ⚠️ لم يتم العثور على روابط وسائط مباشرة داخل الملف.")
-
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        sys.stdout.write(f"\nتم حفظ جميع البيانات بنجاح في ملف: {filename}\n")
+        sys.stdout.flush()
     except Exception as e:
-        print(f"  - ❌ فشل في الحصول على محتوى M3U8: {e}")
+        sys.stdout.write(f"\nحدث خطأ أثناء حفظ الملف: {e}\n")
+        sys.stdout.flush()
 
-# ==============================================================================
-# تنفيذ البرنامج
-# ==============================================================================
-if __name__ == "__main__":
-    url_input = input("ضع رابط يوتيوب: ").strip()
-    if url_input:
-        get_hls_manifest_url(url_input, cookies=COOKIES)
-    else:
-        print("لم يتم إدخال رابط.")
+save_to_file(videos_list)
+
+sys.stdout.write(f"\nالعدد الإجمالي للفيديوهات التي تم جلبها: {len(videos_list)}\n")
+sys.stdout.flush()
+
+# --- إضافة: طباعة مشاهدات الفيديو لكل فيديو ---
+print("\n--- مشاهدات الفيديو ---")
+if videos_list:
+    for i, video in enumerate(videos_list):
+        print(f"{i+1}. العنوان: {video['title']}")
+        print(f"   المشاهدات: {video['views']}")
+        # print(f"   الرابط: {video['link']}") # اختياري: إذا أردت طباعة الروابط أيضاً
+        print("-" * 30)
+else:
+    print("لم يتم العثور على أي فيديوهات لطباعة مشاهداتها.")
+# --- نهاية الإضافة ---
+
+sys.stdout.write("انتهى البرنامج.\n")
+sys.stdout.flush()
