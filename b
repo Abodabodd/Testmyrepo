@@ -1,1 +1,19 @@
-https://watch.strp2p.site/api/v1/player?t=255c1866a7929d760cd920bf7c494f0f287d2f771e47b9cc3db3ee3b01bd344800ac6c3f31f9187689d7a98dd118b8bc95038f937b98c099595de1b313c54bd915f0de437788915b6497bd0bdba017e96c6a653991bc76f76eea4fcbd128135d3eb9ee2e417043c187b4946dcc58e2269befc6ee8dde790d66e5ad6d7e492468b335a3a339466c72306c582938d7f997b665e455873d683399cfb50904d071e0453438b9a2b57b5c79964f9631d06f6638a479b439f655f41f564f97957b0cddf08b9d9dd8bc45fe7a851fed026bb928
+import requests
+
+url = "https://sri.oakfieldproductionstudio.sbs/v4/x6b/pnhxiz/index-f1-v1-a1.txt"
+
+headers = {
+    "Referer": "https://watch.strp2p.site/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+}
+
+try:
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+
+    content = r.text
+    print("===== CONTENT OF TXT =====")
+    print(content)
+
+except Exception as e:
+    print("Error:", e)
