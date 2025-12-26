@@ -1,1 +1,3 @@
-https://s39.glintoriahealth.sbs/v4/miy/pnefrq/cf-master.1766026601.txt?t=121478a4&e=1765241578
+D  URL: https://www.faselhds.biz/anime-movies
+2025-12-26 18:03:00.521  5589-5726  FASELHD_HEADERS         com...adost.cloudstream3.prerelease  D  Headers: {Cookie=cf_clearance=KboABYZYeuPqgZESAHelNmeK3WVUNiITugKj_vpUdpU-1766761377-1.2.1.1-4oCxVcKGKsvGgJNaIGgsLz7E9o_nYy0GrdFEhu.X2pl88VPwJxVHTo7oa4HkAA6gz8dbq0kLoYmBlal.m35AH_e8Ld2XCS_2FiUlrpkjWpmYtrL_boUfo0RMZBIIBeI38Jg8R71Erx.Z1pg1Xv.c1r_2rKa0W36Yqj0xrmJ7nFFo0YR5zKUs4pafGrd7Yi6.KcgbrSZ2qPD39J6KarlY8MXWv9.vASgY_fO3aUP6QeI, User-Agent=Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36}
+2025-12-26 18:03:00.807  5589-5589  ScrollerOp...ionManager com...adost.cloudstream3.prerelease  D  registerConfigChangedListener
