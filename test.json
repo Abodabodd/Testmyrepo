@@ -524,25 +524,6 @@
     "name": "cimanaw"
   },
   {
-    "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjXYRCgXdHTs-hdcOKs1ooTW5plsBI7CWbsA&s",
-    "apiVersion": 1,
-    "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
-    "fileSize": 16392,
-    "status": 1,
-    "language": "ar",
-    "authors": [
-      "Abodabodd"
-    ],
-    "tvTypes": [
-      "TvSeries",
-      "Movie"
-    ],
-    "version": 1,
-    "internalName": "Arabseed",
-    "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/build/Arabseed.cs3",
-    "name": "Arabseed"
-  },
-  {
     "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZlAGH56cEnNEL93W3QqZWpUe8XR8i90olTA&s",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
