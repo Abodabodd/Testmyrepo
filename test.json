@@ -15,6 +15,26 @@
       "Movie"
     ],
     "version": 1,
+    "internalName": "Cimawbas",
+    "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/Cimawbas.cs3",
+    "name": "Cimawbas"
+  },
+    {
+    "iconUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ03aoQBNDy_Hkm5MUGGvluPvK7To7BdGiSnzQn7WJ3fQ&s=10",
+    "apiVersion": 1,
+    "repositoryUrl": "https://github.com/Abodabodd/Testmyrepo",
+    "fileSize": 4900,
+    "status": 1,
+    "language": "ar",
+    "authors": [
+      "Abodabodd"
+    ],
+    "tvTypes": [
+      "TvSeries",
+      "Anime",
+      "Movie"
+    ],
+    "version": 1,
     "internalName": "Arabseed",
     "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/Arabseed.cs3",
     "name": "Arabseed"
