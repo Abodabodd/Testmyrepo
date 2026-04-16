@@ -1,2 +1,1 @@
-user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
-    )
+"https://rm.freex2line.online/2020/02/blog-post.html/get-link.php?request_id=d49f6401132fa36472c6a28d13bcfed7&hmac_token=uVo9o5SNPxRCjprVrO68Ny4U6vWEMfeZ8wXPGoK2QyU%3D&ch=1560b81efc76842a&fp=TW96aWxsYTEwNDkw"
