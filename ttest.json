@@ -1,0 +1,8 @@
+{
+  "name": "Test",
+  "description": "",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/Abodabodd/Testmyrepo/refs/heads/main/tplugins.json"
+  ]
+}
