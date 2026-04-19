@@ -1,0 +1,21 @@
+[
+    {
+        "iconUrl": "",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Abodabodd/re-3arabi",
+        "fileSize": 10000,
+        "status": 1,
+        "language": "ar",
+        "authors": [
+            "Abodabodd"
+        ],
+        "tvTypes": [
+            "movie"
+        ],
+        "version": 1,
+        "internalName": "Cartoony",
+        "description": "",
+        "url": "https://github.com/Abodabodd/Testmyrepo/raw/refs/heads/main/Cartoony.cs3",
+        "name": "Cartoony"
+    }
+]
